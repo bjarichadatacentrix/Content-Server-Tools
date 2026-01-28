@@ -17,6 +17,8 @@ namespace Search_for_Users
         private System.Windows.Forms.RadioButton radioSearchGroups;
         private System.Windows.Forms.RadioButton radioCreateGroups;
         private System.Windows.Forms.RadioButton radioCreateSubGroups;
+        private System.Windows.Forms.RadioButton radioUpdateGroups;
+        private System.Windows.Forms.RadioButton radioDeleteGroup;
         private System.Windows.Forms.Button btnNext;
 
         /// <summary>
@@ -46,6 +48,8 @@ namespace Search_for_Users
             radioSearchGroups = new RadioButton();
             radioCreateGroups = new RadioButton();
             radioCreateSubGroups = new RadioButton();
+            radioUpdateGroups = new RadioButton();
+            radioDeleteGroup = new RadioButton();
             grpLogs = new GroupBox();
             radioSearchForUsers = new RadioButton();
             radioCreateUser = new RadioButton();
@@ -83,6 +87,8 @@ namespace Search_for_Users
             // 
             // groupBox1
             // 
+            groupBox1.Controls.Add(radioDeleteGroup);
+            groupBox1.Controls.Add(radioUpdateGroups);
             groupBox1.Controls.Add(radioCreateSubGroups);
             groupBox1.Controls.Add(radioCreateGroups);
             groupBox1.Controls.Add(radioSearchGroups);
@@ -129,6 +135,30 @@ namespace Search_for_Users
             radioCreateSubGroups.Text = "Create SubGroups";
             radioCreateSubGroups.UseVisualStyleBackColor = true;
             radioCreateSubGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            // 
+            // radioUpdateGroups
+            // 
+            radioUpdateGroups.AutoSize = true;
+            radioUpdateGroups.Location = new Point(15, 134);
+            radioUpdateGroups.Name = "radioUpdateGroups";
+            radioUpdateGroups.Size = new Size(115, 23);
+            radioUpdateGroups.TabIndex = 3;
+            radioUpdateGroups.TabStop = true;
+            radioUpdateGroups.Text = "Update Groups";
+            radioUpdateGroups.UseVisualStyleBackColor = true;
+            radioUpdateGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            // 
+            // radioDeleteGroup
+            // 
+            radioDeleteGroup.AutoSize = true;
+            radioDeleteGroup.Location = new Point(15, 168);
+            radioDeleteGroup.Name = "radioDeleteGroup";
+            radioDeleteGroup.Size = new Size(105, 23);
+            radioDeleteGroup.TabIndex = 4;
+            radioDeleteGroup.TabStop = true;
+            radioDeleteGroup.Text = "Delete Group";
+            radioDeleteGroup.UseVisualStyleBackColor = true;
+            radioDeleteGroup.CheckedChanged += GroupsRadioButton_CheckedChanged;
             // 
             // grpLogs
             // 

@@ -41,7 +41,17 @@ namespace Search_for_Users
         /// <summary>
         /// Create subgroups (POST /api/v2/members with parent_id).
         /// </summary>
-        CreateSubGroups = 6
+        CreateSubGroups = 6,
+
+        /// <summary>
+        /// Update groups (PUT /api/v2/members/{group_id}).
+        /// </summary>
+        UpdateGroups = 7,
+
+        /// <summary>
+        /// Delete group (DELETE /api/v2/members/{group_id}).
+        /// </summary>
+        DeleteGroup = 8
     }
 
     /// <summary>
@@ -85,6 +95,8 @@ namespace Search_for_Users
                 radioSearchGroups.Checked = false;
                 radioCreateGroups.Checked = false;
                 radioCreateSubGroups.Checked = false;
+                radioUpdateGroups.Checked = false;
+                radioDeleteGroup.Checked = false;
             }
         }
 
@@ -118,6 +130,8 @@ namespace Search_for_Users
                 radioSearchGroups.Checked ? ContentServerAction.SearchGroups :
                 radioCreateGroups.Checked ? ContentServerAction.CreateGroups :
                 radioCreateSubGroups.Checked ? ContentServerAction.CreateSubGroups :
+                radioUpdateGroups.Checked ? ContentServerAction.UpdateGroups :
+                radioDeleteGroup.Checked ? ContentServerAction.DeleteGroup :
                 (ContentServerAction?)null;
 
             if (selectedAction is null)

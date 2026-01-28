@@ -60,6 +60,8 @@ namespace Search_for_Users
         {
             btnBack = new Button();
             panelMain = new Panel();
+            txtSelectedAction = new TextBox();
+            label1 = new Label();
             lblErrorFilesValue = new Label();
             lblProcessedFilesValue = new Label();
             lblTotalFilesValue = new Label();
@@ -105,6 +107,8 @@ namespace Search_for_Users
             // 
             panelMain.BackColor = SystemColors.ControlLightLight;
             panelMain.BorderStyle = BorderStyle.FixedSingle;
+            panelMain.Controls.Add(txtSelectedAction);
+            panelMain.Controls.Add(label1);
             panelMain.Controls.Add(lblErrorFilesValue);
             panelMain.Controls.Add(lblProcessedFilesValue);
             panelMain.Controls.Add(lblTotalFilesValue);
@@ -131,8 +135,29 @@ namespace Search_for_Users
             panelMain.Controls.Add(lblSectionTitle);
             panelMain.Location = new Point(93, 40);
             panelMain.Name = "panelMain";
-            panelMain.Size = new Size(780, 380);
+            panelMain.Size = new Size(780, 437);
             panelMain.TabIndex = 1;
+            // 
+            // txtSelectedAction
+            // 
+            txtSelectedAction.BackColor = SystemColors.Window;
+            txtSelectedAction.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            txtSelectedAction.ForeColor = Color.Green;
+            txtSelectedAction.Location = new Point(154, 52);
+            txtSelectedAction.Name = "txtSelectedAction";
+            txtSelectedAction.ReadOnly = true;
+            txtSelectedAction.Size = new Size(255, 25);
+            txtSelectedAction.TabIndex = 24;
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("Segoe UI", 10F);
+            label1.Location = new Point(39, 55);
+            label1.Name = "label1";
+            label1.Size = new Size(109, 19);
+            label1.TabIndex = 23;
+            label1.Text = "Selected Action :";
             // 
             // lblErrorFilesValue
             // 
@@ -160,6 +185,7 @@ namespace Search_for_Users
             lblTotalFilesValue.Size = new Size(13, 15);
             lblTotalFilesValue.TabIndex = 19;
             lblTotalFilesValue.Text = "0";
+            lblTotalFilesValue.Click += lblTotalFilesValue_Click;
             // 
             // lblErrorFiles
             // 
@@ -220,9 +246,9 @@ namespace Search_for_Users
             grpLogs.Controls.Add(btnOpenLogLocation);
             grpLogs.Controls.Add(radioErrorLog);
             grpLogs.Controls.Add(radioInfoLog);
-            grpLogs.Location = new Point(430, 80);
+            grpLogs.Location = new Point(430, 83);
             grpLogs.Name = "grpLogs";
-            grpLogs.Size = new Size(143, 211);
+            grpLogs.Size = new Size(143, 208);
             grpLogs.TabIndex = 14;
             grpLogs.TabStop = false;
             grpLogs.Text = "Logs";
@@ -324,7 +350,7 @@ namespace Search_for_Users
             // 
             // btnChooseInputFile
             // 
-            btnChooseInputFile.Location = new Point(40, 150);
+            btnChooseInputFile.Location = new Point(39, 163);
             btnChooseInputFile.Name = "btnChooseInputFile";
             btnChooseInputFile.Size = new Size(140, 30);
             btnChooseInputFile.TabIndex = 6;
@@ -334,7 +360,7 @@ namespace Search_for_Users
             // 
             // txtInputFile
             // 
-            txtInputFile.Location = new Point(190, 154);
+            txtInputFile.Location = new Point(189, 167);
             txtInputFile.Name = "txtInputFile";
             txtInputFile.ReadOnly = true;
             txtInputFile.Size = new Size(220, 23);
@@ -343,7 +369,7 @@ namespace Search_for_Users
             // lblInputFile
             // 
             lblInputFile.AutoSize = true;
-            lblInputFile.Location = new Point(40, 130);
+            lblInputFile.Location = new Point(39, 143);
             lblInputFile.Name = "lblInputFile";
             lblInputFile.Size = new Size(97, 15);
             lblInputFile.TabIndex = 4;
@@ -351,7 +377,7 @@ namespace Search_for_Users
             // 
             // btnBrowseLogLocation
             // 
-            btnBrowseLogLocation.Location = new Point(40, 90);
+            btnBrowseLogLocation.Location = new Point(39, 103);
             btnBrowseLogLocation.Name = "btnBrowseLogLocation";
             btnBrowseLogLocation.Size = new Size(140, 30);
             btnBrowseLogLocation.TabIndex = 3;
@@ -361,7 +387,7 @@ namespace Search_for_Users
             // 
             // txtLogLocation
             // 
-            txtLogLocation.Location = new Point(190, 94);
+            txtLogLocation.Location = new Point(189, 107);
             txtLogLocation.Name = "txtLogLocation";
             txtLogLocation.ReadOnly = true;
             txtLogLocation.Size = new Size(220, 23);
@@ -370,7 +396,7 @@ namespace Search_for_Users
             // lblLogLocation
             // 
             lblLogLocation.AutoSize = true;
-            lblLogLocation.Location = new Point(40, 70);
+            lblLogLocation.Location = new Point(39, 83);
             lblLogLocation.Name = "lblLogLocation";
             lblLogLocation.Size = new Size(76, 15);
             lblLogLocation.TabIndex = 1;
@@ -379,10 +405,10 @@ namespace Search_for_Users
             // lblSectionTitle
             // 
             lblSectionTitle.AutoSize = true;
-            lblSectionTitle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblSectionTitle.Location = new Point(40, 20);
+            lblSectionTitle.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            lblSectionTitle.Location = new Point(39, 16);
             lblSectionTitle.Name = "lblSectionTitle";
-            lblSectionTitle.Size = new Size(187, 15);
+            lblSectionTitle.Size = new Size(237, 20);
             lblSectionTitle.TabIndex = 0;
             lblSectionTitle.Text = "Upload Document and Metadata";
             // 
@@ -390,7 +416,7 @@ namespace Search_for_Users
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(900, 450);
+            ClientSize = new Size(900, 532);
             Controls.Add(panelMain);
             Controls.Add(btnBack);
             Name = "SearchForUsersForm";
@@ -403,6 +429,9 @@ namespace Search_for_Users
         }
 
         #endregion
+
+        private Label label1;
+        private TextBox txtSelectedAction;
     }
 }
 
