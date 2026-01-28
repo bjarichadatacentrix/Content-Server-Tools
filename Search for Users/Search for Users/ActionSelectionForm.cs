@@ -26,7 +26,22 @@ namespace Search_for_Users
         /// <summary>
         /// Delete members (DELETE /api/v1/members/{user_id}).
         /// </summary>
-        DeleteUser = 3
+        DeleteUser = 3,
+
+        /// <summary>
+        /// Search groups (GET /api/v2/members).
+        /// </summary>
+        SearchGroups = 4,
+
+        /// <summary>
+        /// Create groups (POST /api/v2/members).
+        /// </summary>
+        CreateGroups = 5,
+
+        /// <summary>
+        /// Create subgroups (POST /api/v2/members with parent_id).
+        /// </summary>
+        CreateSubGroups = 6
     }
 
     /// <summary>
@@ -61,6 +76,33 @@ namespace Search_for_Users
         }
 
         /// <summary>
+        /// When a Users radio button is selected, uncheck all Groups radio buttons.
+        /// </summary>
+        private void UsersRadioButton_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (sender is RadioButton radio && radio.Checked)
+            {
+                radioSearchGroups.Checked = false;
+                radioCreateGroups.Checked = false;
+                radioCreateSubGroups.Checked = false;
+            }
+        }
+
+        /// <summary>
+        /// When a Groups radio button is selected, uncheck all Users radio buttons.
+        /// </summary>
+        private void GroupsRadioButton_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (sender is RadioButton radio && radio.Checked)
+            {
+                radioSearchForUsers.Checked = false;
+                radioCreateUser.Checked = false;
+                radioUpdateUser.Checked = false;
+                radioDeleteUser.Checked = false;
+            }
+        }
+
+        /// <summary>
         /// Handles the Next button click. When "Search for Users" is
         /// selected it opens the Search for Users form, otherwise it
         /// prompts the user to make a selection.
@@ -73,6 +115,9 @@ namespace Search_for_Users
                 radioCreateUser.Checked ? ContentServerAction.CreateUser :
                 radioUpdateUser.Checked ? ContentServerAction.UpdateUser :
                 radioDeleteUser.Checked ? ContentServerAction.DeleteUser :
+                radioSearchGroups.Checked ? ContentServerAction.SearchGroups :
+                radioCreateGroups.Checked ? ContentServerAction.CreateGroups :
+                radioCreateSubGroups.Checked ? ContentServerAction.CreateSubGroups :
                 (ContentServerAction?)null;
 
             if (selectedAction is null)

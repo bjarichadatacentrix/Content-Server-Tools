@@ -14,6 +14,9 @@ namespace Search_for_Users
         private System.Windows.Forms.RadioButton radioCreateUser;
         private System.Windows.Forms.RadioButton radioUpdateUser;
         private System.Windows.Forms.RadioButton radioDeleteUser;
+        private System.Windows.Forms.RadioButton radioSearchGroups;
+        private System.Windows.Forms.RadioButton radioCreateGroups;
+        private System.Windows.Forms.RadioButton radioCreateSubGroups;
         private System.Windows.Forms.Button btnNext;
 
         /// <summary>
@@ -37,121 +40,200 @@ namespace Search_for_Users
         /// </summary>
         private void InitializeComponent()
         {
-            this.btnBack = new System.Windows.Forms.Button();
-            this.panelContainer = new System.Windows.Forms.Panel();
-            this.btnNext = new System.Windows.Forms.Button();
-            this.radioSearchForUsers = new System.Windows.Forms.RadioButton();
-            this.radioCreateUser = new System.Windows.Forms.RadioButton();
-            this.radioUpdateUser = new System.Windows.Forms.RadioButton();
-            this.radioDeleteUser = new System.Windows.Forms.RadioButton();
-            this.labelHeading = new System.Windows.Forms.Label();
-            this.panelContainer.SuspendLayout();
-            this.SuspendLayout();
+            btnBack = new Button();
+            panelContainer = new Panel();
+            groupBox1 = new GroupBox();
+            radioSearchGroups = new RadioButton();
+            radioCreateGroups = new RadioButton();
+            radioCreateSubGroups = new RadioButton();
+            grpLogs = new GroupBox();
+            radioSearchForUsers = new RadioButton();
+            radioCreateUser = new RadioButton();
+            radioDeleteUser = new RadioButton();
+            radioUpdateUser = new RadioButton();
+            btnNext = new Button();
+            labelHeading = new Label();
+            panelContainer.SuspendLayout();
+            groupBox1.SuspendLayout();
+            grpLogs.SuspendLayout();
+            SuspendLayout();
             // 
             // btnBack
             // 
-            this.btnBack.Location = new System.Drawing.Point(12, 12);
-            this.btnBack.Name = "btnBack";
-            this.btnBack.Size = new System.Drawing.Size(75, 25);
-            this.btnBack.TabIndex = 0;
-            this.btnBack.Text = "Back";
-            this.btnBack.UseVisualStyleBackColor = true;
-            this.btnBack.Click += new System.EventHandler(this.btnBack_Click);
+            btnBack.Location = new Point(12, 12);
+            btnBack.Name = "btnBack";
+            btnBack.Size = new Size(75, 25);
+            btnBack.TabIndex = 0;
+            btnBack.Text = "Back";
+            btnBack.UseVisualStyleBackColor = true;
+            btnBack.Click += btnBack_Click;
             // 
             // panelContainer
             // 
-            this.panelContainer.BackColor = System.Drawing.SystemColors.ControlLightLight;
-            this.panelContainer.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.panelContainer.Controls.Add(this.btnNext);
-            this.panelContainer.Controls.Add(this.radioDeleteUser);
-            this.panelContainer.Controls.Add(this.radioUpdateUser);
-            this.panelContainer.Controls.Add(this.radioCreateUser);
-            this.panelContainer.Controls.Add(this.radioSearchForUsers);
-            this.panelContainer.Controls.Add(this.labelHeading);
-            this.panelContainer.Location = new System.Drawing.Point(93, 40);
-            this.panelContainer.Name = "panelContainer";
-            this.panelContainer.Size = new System.Drawing.Size(640, 320);
-            this.panelContainer.TabIndex = 1;
+            panelContainer.BackColor = SystemColors.ControlLightLight;
+            panelContainer.BorderStyle = BorderStyle.FixedSingle;
+            panelContainer.Controls.Add(groupBox1);
+            panelContainer.Controls.Add(grpLogs);
+            panelContainer.Controls.Add(btnNext);
+            panelContainer.Controls.Add(labelHeading);
+            panelContainer.Location = new Point(93, 40);
+            panelContainer.Name = "panelContainer";
+            panelContainer.Size = new Size(640, 320);
+            panelContainer.TabIndex = 1;
             // 
-            // btnNext
+            // groupBox1
             // 
-            this.btnNext.Location = new System.Drawing.Point(520, 265);
-            this.btnNext.Name = "btnNext";
-            this.btnNext.Size = new System.Drawing.Size(90, 30);
-            this.btnNext.TabIndex = 3;
-            this.btnNext.Text = "Next";
-            this.btnNext.UseVisualStyleBackColor = true;
-            this.btnNext.Click += new System.EventHandler(this.btnNext_Click);
+            groupBox1.Controls.Add(radioCreateSubGroups);
+            groupBox1.Controls.Add(radioCreateGroups);
+            groupBox1.Controls.Add(radioSearchGroups);
+            groupBox1.Font = new Font("Segoe UI", 10F);
+            groupBox1.Location = new Point(202, 84);
+            groupBox1.Name = "groupBox1";
+            groupBox1.Size = new Size(160, 211);
+            groupBox1.TabIndex = 16;
+            groupBox1.TabStop = false;
+            groupBox1.Text = "Groups";
+            // 
+            // radioSearchGroups
+            // 
+            radioSearchGroups.AutoSize = true;
+            radioSearchGroups.Location = new Point(15, 32);
+            radioSearchGroups.Name = "radioSearchGroups";
+            radioSearchGroups.Size = new Size(110, 23);
+            radioSearchGroups.TabIndex = 0;
+            radioSearchGroups.TabStop = true;
+            radioSearchGroups.Text = "Search Groups";
+            radioSearchGroups.UseVisualStyleBackColor = true;
+            radioSearchGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            // 
+            // radioCreateGroups
+            // 
+            radioCreateGroups.AutoSize = true;
+            radioCreateGroups.Location = new Point(15, 66);
+            radioCreateGroups.Name = "radioCreateGroups";
+            radioCreateGroups.Size = new Size(110, 23);
+            radioCreateGroups.TabIndex = 1;
+            radioCreateGroups.TabStop = true;
+            radioCreateGroups.Text = "Create Groups";
+            radioCreateGroups.UseVisualStyleBackColor = true;
+            radioCreateGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            // 
+            // radioCreateSubGroups
+            // 
+            radioCreateSubGroups.AutoSize = true;
+            radioCreateSubGroups.Location = new Point(15, 100);
+            radioCreateSubGroups.Name = "radioCreateSubGroups";
+            radioCreateSubGroups.Size = new Size(130, 23);
+            radioCreateSubGroups.TabIndex = 2;
+            radioCreateSubGroups.TabStop = true;
+            radioCreateSubGroups.Text = "Create SubGroups";
+            radioCreateSubGroups.UseVisualStyleBackColor = true;
+            radioCreateSubGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            // 
+            // grpLogs
+            // 
+            grpLogs.Controls.Add(radioSearchForUsers);
+            grpLogs.Controls.Add(radioCreateUser);
+            grpLogs.Controls.Add(radioDeleteUser);
+            grpLogs.Controls.Add(radioUpdateUser);
+            grpLogs.Font = new Font("Segoe UI", 10F);
+            grpLogs.Location = new Point(21, 84);
+            grpLogs.Name = "grpLogs";
+            grpLogs.Size = new Size(155, 211);
+            grpLogs.TabIndex = 15;
+            grpLogs.TabStop = false;
+            grpLogs.Text = "Users";
             // 
             // radioSearchForUsers
             // 
-            this.radioSearchForUsers.AutoSize = true;
-            this.radioSearchForUsers.Location = new System.Drawing.Point(60, 110);
-            this.radioSearchForUsers.Name = "radioSearchForUsers";
-            this.radioSearchForUsers.Size = new System.Drawing.Size(110, 19);
-            this.radioSearchForUsers.TabIndex = 2;
-            this.radioSearchForUsers.TabStop = true;
-            this.radioSearchForUsers.Text = "Search for Users";
-            this.radioSearchForUsers.UseVisualStyleBackColor = true;
-            //
+            radioSearchForUsers.AutoSize = true;
+            radioSearchForUsers.Location = new Point(15, 32);
+            radioSearchForUsers.Name = "radioSearchForUsers";
+            radioSearchForUsers.Size = new Size(126, 23);
+            radioSearchForUsers.TabIndex = 2;
+            radioSearchForUsers.TabStop = true;
+            radioSearchForUsers.Text = "Search for Users";
+            radioSearchForUsers.UseVisualStyleBackColor = true;
+            radioSearchForUsers.CheckedChanged += UsersRadioButton_CheckedChanged;
+            // 
             // radioCreateUser
-            //
-            this.radioCreateUser.AutoSize = true;
-            this.radioCreateUser.Location = new System.Drawing.Point(60, 145);
-            this.radioCreateUser.Name = "radioCreateUser";
-            this.radioCreateUser.Size = new System.Drawing.Size(84, 19);
-            this.radioCreateUser.TabIndex = 3;
-            this.radioCreateUser.TabStop = true;
-            this.radioCreateUser.Text = "Create User";
-            this.radioCreateUser.UseVisualStyleBackColor = true;
-            //
-            // radioUpdateUser
-            //
-            this.radioUpdateUser.AutoSize = true;
-            this.radioUpdateUser.Location = new System.Drawing.Point(60, 180);
-            this.radioUpdateUser.Name = "radioUpdateUser";
-            this.radioUpdateUser.Size = new System.Drawing.Size(88, 19);
-            this.radioUpdateUser.TabIndex = 4;
-            this.radioUpdateUser.TabStop = true;
-            this.radioUpdateUser.Text = "Update User";
-            this.radioUpdateUser.UseVisualStyleBackColor = true;
-            //
+            // 
+            radioCreateUser.AutoSize = true;
+            radioCreateUser.Location = new Point(15, 66);
+            radioCreateUser.Name = "radioCreateUser";
+            radioCreateUser.Size = new Size(99, 23);
+            radioCreateUser.TabIndex = 3;
+            radioCreateUser.TabStop = true;
+            radioCreateUser.Text = "Create User";
+            radioCreateUser.UseVisualStyleBackColor = true;
+            radioCreateUser.CheckedChanged += UsersRadioButton_CheckedChanged;
+            // 
             // radioDeleteUser
-            //
-            this.radioDeleteUser.AutoSize = true;
-            this.radioDeleteUser.Location = new System.Drawing.Point(60, 215);
-            this.radioDeleteUser.Name = "radioDeleteUser";
-            this.radioDeleteUser.Size = new System.Drawing.Size(85, 19);
-            this.radioDeleteUser.TabIndex = 5;
-            this.radioDeleteUser.TabStop = true;
-            this.radioDeleteUser.Text = "Delete User";
-            this.radioDeleteUser.UseVisualStyleBackColor = true;
+            // 
+            radioDeleteUser.AutoSize = true;
+            radioDeleteUser.Location = new Point(15, 137);
+            radioDeleteUser.Name = "radioDeleteUser";
+            radioDeleteUser.Size = new Size(98, 23);
+            radioDeleteUser.TabIndex = 5;
+            radioDeleteUser.TabStop = true;
+            radioDeleteUser.Text = "Delete User";
+            radioDeleteUser.UseVisualStyleBackColor = true;
+            radioDeleteUser.CheckedChanged += UsersRadioButton_CheckedChanged;
+            // 
+            // radioUpdateUser
+            // 
+            radioUpdateUser.AutoSize = true;
+            radioUpdateUser.Location = new Point(15, 101);
+            radioUpdateUser.Name = "radioUpdateUser";
+            radioUpdateUser.Size = new Size(104, 23);
+            radioUpdateUser.TabIndex = 4;
+            radioUpdateUser.TabStop = true;
+            radioUpdateUser.Text = "Update User";
+            radioUpdateUser.UseVisualStyleBackColor = true;
+            radioUpdateUser.CheckedChanged += UsersRadioButton_CheckedChanged;
+            // 
+            // btnNext
+            // 
+            btnNext.Location = new Point(520, 265);
+            btnNext.Name = "btnNext";
+            btnNext.Size = new Size(90, 30);
+            btnNext.TabIndex = 3;
+            btnNext.Text = "Next";
+            btnNext.UseVisualStyleBackColor = true;
+            btnNext.Click += btnNext_Click;
             // 
             // labelHeading
             // 
-            this.labelHeading.AutoSize = true;
-            this.labelHeading.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.labelHeading.Location = new System.Drawing.Point(150, 40);
-            this.labelHeading.Name = "labelHeading";
-            this.labelHeading.Size = new System.Drawing.Size(292, 20);
-            this.labelHeading.TabIndex = 1;
-            this.labelHeading.Text = "Please Select the action to be performed";
+            labelHeading.AutoSize = true;
+            labelHeading.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            labelHeading.Location = new Point(150, 40);
+            labelHeading.Name = "labelHeading";
+            labelHeading.Size = new Size(291, 20);
+            labelHeading.TabIndex = 1;
+            labelHeading.Text = "Please Select the action to be performed";
             // 
             // ActionSelectionForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 400);
-            this.Controls.Add(this.panelContainer);
-            this.Controls.Add(this.btnBack);
-            this.Name = "ActionSelectionForm";
-            this.Text = "Content Server Actions";
-            this.panelContainer.ResumeLayout(false);
-            this.panelContainer.PerformLayout();
-            this.ResumeLayout(false);
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(800, 400);
+            Controls.Add(panelContainer);
+            Controls.Add(btnBack);
+            Name = "ActionSelectionForm";
+            Text = "Content Server Actions";
+            panelContainer.ResumeLayout(false);
+            panelContainer.PerformLayout();
+            groupBox1.ResumeLayout(false);
+            groupBox1.PerformLayout();
+            grpLogs.ResumeLayout(false);
+            grpLogs.PerformLayout();
+            ResumeLayout(false);
         }
 
         #endregion
+
+        private GroupBox grpLogs;
+        private GroupBox groupBox1;
     }
 }
 

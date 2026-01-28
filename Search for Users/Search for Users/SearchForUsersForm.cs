@@ -61,6 +61,9 @@ namespace Search_for_Users
                 ContentServerAction.CreateUser => "Create User",
                 ContentServerAction.UpdateUser => "Update User",
                 ContentServerAction.DeleteUser => "Delete User",
+                ContentServerAction.SearchGroups => "Search Groups",
+                ContentServerAction.CreateGroups => "Create Groups",
+                ContentServerAction.CreateSubGroups => "Create SubGroups",
                 _ => "Search for Users"
             };
 
@@ -385,34 +388,437 @@ namespace Search_for_Users
             // Attach the OTCSTicket header so the API knows who we are.
             client.DefaultRequestHeaders.Add("OTCSTicket", _loginForm.AuthTicket);
 
-            // Build the fixed /api/v1/members endpoint URL for both actions.
-            var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
-
             // Execute the appropriate API call based on the selected action.
             if (_selectedAction == ContentServerAction.SearchForUsers)
             {
                 // For the Search action, call GET /members once per CSV file.
+                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
                 errorWritten = await LogMembersGetOnceAsync(client, membersUri, infoWriter, errorWriter, cancellationToken);
+            }
+            else if (_selectedAction == ContentServerAction.SearchGroups)
+            {
+                // For the Search Groups action, call GET /api/v2/members with parameters from CSV.
+                errorWritten = await SearchGroupsFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+            }
+            else if (_selectedAction == ContentServerAction.CreateGroups)
+            {
+                // For the Create Groups action, call POST /api/v2/members with parameters from CSV.
+                errorWritten = await CreateGroupsFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+            }
+            else if (_selectedAction == ContentServerAction.CreateSubGroups)
+            {
+                // For the Create SubGroups action, call POST /api/v2/members with parameters from CSV including parent_id.
+                errorWritten = await CreateSubGroupsFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.CreateUser)
             {
                 // For the Create action, call POST /members for each CSV data row (starting at startRow).
+                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
                 errorWritten = await CreateUsersFromCsvAsync(client, membersUri, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.UpdateUser)
             {
                 // For the Update action, call PUT /members/{user_id} for each CSV data row.
                 // The first column is the user_id, and all other columns are fields to update.
+                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
                 errorWritten = await UpdateUsersFromCsvAsync(client, membersUri, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.DeleteUser)
             {
                 // For the Delete action, call DELETE /members/{user_id} for each CSV data row.
                 // The user_id comes from the CSV file (typically the first column).
+                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
                 errorWritten = await DeleteUsersFromCsvAsync(client, membersUri, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
 
             // Let the caller know whether any error content was written.
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and searches for groups by calling GET /api/v2/members with
+        /// query parameters from the CSV file. The CSV should contain columns for
+        /// where_type and where_name. Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> SearchGroupsFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            // Base URI for the groups API endpoint.
+            var baseUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v2/members");
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get parameters from CSV columns.
+                var whereTypeText = GetColumn(values, "where_type");
+                var whereName = GetColumn(values, "where_name");
+
+                // Validate where_type (should be 1 by default, but read from CSV).
+                if (string.IsNullOrWhiteSpace(whereTypeText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'where_type' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(whereTypeText, out var whereTypeValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'where_type' value: '{whereTypeText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(whereName))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'where_name' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Build the query string with parameters from CSV.
+                var queryString = $"?where_type={whereTypeValue}&where_name={Uri.EscapeDataString(whereName)}";
+                var requestUri = new Uri(baseUri, queryString);
+
+                try
+                {
+                    using var response = await client.GetAsync(requestUri, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Searched groups from Row {dataRowNumber} (where_type={whereTypeValue}, where_name={whereName}):{Environment.NewLine}{formatted}");
+                        // Count only successful searches toward rows processed (excludes header).
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and creates groups by calling POST /api/v2/members with
+        /// parameters from the CSV file. The CSV should contain columns for
+        /// type and name. Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> CreateGroupsFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            // Base URI for the groups API endpoint.
+            var baseUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v2/members");
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get parameters from CSV columns.
+                var typeText = GetColumn(values, "type");
+                var name = GetColumn(values, "name");
+
+                // Validate type.
+                if (string.IsNullOrWhiteSpace(typeText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'type' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(typeText, out var typeValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'type' value: '{typeText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'name' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Build the JSON request body for group creation.
+                var requestObject = new
+                {
+                    type = typeValue,
+                    name = name
+                };
+
+                // Serialize to JSON and send POST /api/v2/members.
+                var json = JsonSerializer.Serialize(requestObject);
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                try
+                {
+                    using var response = await client.PostAsync(baseUri, content, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Created group from Row {dataRowNumber} (type={typeValue}, name={name}):{Environment.NewLine}{formatted}");
+                        // Count only successful creates toward rows processed (excludes header).
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and creates subgroups by calling POST /api/v2/members with
+        /// parameters from the CSV file. The CSV should contain columns for
+        /// type, name, and parent_id. Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> CreateSubGroupsFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            // Base URI for the groups API endpoint.
+            var baseUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v2/members");
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get parameters from CSV columns.
+                var typeText = GetColumn(values, "type");
+                var name = GetColumn(values, "name");
+                var parentIdText = GetColumn(values, "parent_id");
+
+                // Validate type.
+                if (string.IsNullOrWhiteSpace(typeText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'type' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(typeText, out var typeValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'type' value: '{typeText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'name' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Validate parent_id.
+                if (string.IsNullOrWhiteSpace(parentIdText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'parent_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(parentIdText, out var parentIdValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'parent_id' value: '{parentIdText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Build the JSON request body for subgroup creation.
+                var requestObject = new
+                {
+                    type = typeValue,
+                    name = name,
+                    parent_id = parentIdValue
+                };
+
+                // Serialize to JSON and send POST /api/v2/members.
+                var json = JsonSerializer.Serialize(requestObject);
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                try
+                {
+                    using var response = await client.PostAsync(baseUri, content, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Created subgroup from Row {dataRowNumber} (type={typeValue}, name={name}, parent_id={parentIdValue}):{Environment.NewLine}{formatted}");
+                        // Count only successful creates toward rows processed (excludes header).
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
             return errorWritten;
         }
 
