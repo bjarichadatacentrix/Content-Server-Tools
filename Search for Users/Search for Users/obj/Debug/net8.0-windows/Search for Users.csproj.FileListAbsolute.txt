@@ -16,3 +16,4 @@ C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-w
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search for Users.genruntimeconfig.cache
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\ref\Search for Users.dll
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.ActionSelectionForm.resources
+C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.SearchForUsersForm.resources

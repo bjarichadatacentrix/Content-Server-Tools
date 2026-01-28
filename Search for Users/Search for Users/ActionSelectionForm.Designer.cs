@@ -11,6 +11,9 @@ namespace Search_for_Users
         private System.Windows.Forms.Panel panelContainer;
         private System.Windows.Forms.Label labelHeading;
         private System.Windows.Forms.RadioButton radioSearchForUsers;
+        private System.Windows.Forms.RadioButton radioCreateUser;
+        private System.Windows.Forms.RadioButton radioUpdateUser;
+        private System.Windows.Forms.RadioButton radioDeleteUser;
         private System.Windows.Forms.Button btnNext;
 
         /// <summary>
@@ -38,6 +41,9 @@ namespace Search_for_Users
             this.panelContainer = new System.Windows.Forms.Panel();
             this.btnNext = new System.Windows.Forms.Button();
             this.radioSearchForUsers = new System.Windows.Forms.RadioButton();
+            this.radioCreateUser = new System.Windows.Forms.RadioButton();
+            this.radioUpdateUser = new System.Windows.Forms.RadioButton();
+            this.radioDeleteUser = new System.Windows.Forms.RadioButton();
             this.labelHeading = new System.Windows.Forms.Label();
             this.panelContainer.SuspendLayout();
             this.SuspendLayout();
@@ -57,6 +63,9 @@ namespace Search_for_Users
             this.panelContainer.BackColor = System.Drawing.SystemColors.ControlLightLight;
             this.panelContainer.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.panelContainer.Controls.Add(this.btnNext);
+            this.panelContainer.Controls.Add(this.radioDeleteUser);
+            this.panelContainer.Controls.Add(this.radioUpdateUser);
+            this.panelContainer.Controls.Add(this.radioCreateUser);
             this.panelContainer.Controls.Add(this.radioSearchForUsers);
             this.panelContainer.Controls.Add(this.labelHeading);
             this.panelContainer.Location = new System.Drawing.Point(93, 40);
@@ -84,6 +93,39 @@ namespace Search_for_Users
             this.radioSearchForUsers.TabStop = true;
             this.radioSearchForUsers.Text = "Search for Users";
             this.radioSearchForUsers.UseVisualStyleBackColor = true;
+            //
+            // radioCreateUser
+            //
+            this.radioCreateUser.AutoSize = true;
+            this.radioCreateUser.Location = new System.Drawing.Point(60, 145);
+            this.radioCreateUser.Name = "radioCreateUser";
+            this.radioCreateUser.Size = new System.Drawing.Size(84, 19);
+            this.radioCreateUser.TabIndex = 3;
+            this.radioCreateUser.TabStop = true;
+            this.radioCreateUser.Text = "Create User";
+            this.radioCreateUser.UseVisualStyleBackColor = true;
+            //
+            // radioUpdateUser
+            //
+            this.radioUpdateUser.AutoSize = true;
+            this.radioUpdateUser.Location = new System.Drawing.Point(60, 180);
+            this.radioUpdateUser.Name = "radioUpdateUser";
+            this.radioUpdateUser.Size = new System.Drawing.Size(88, 19);
+            this.radioUpdateUser.TabIndex = 4;
+            this.radioUpdateUser.TabStop = true;
+            this.radioUpdateUser.Text = "Update User";
+            this.radioUpdateUser.UseVisualStyleBackColor = true;
+            //
+            // radioDeleteUser
+            //
+            this.radioDeleteUser.AutoSize = true;
+            this.radioDeleteUser.Location = new System.Drawing.Point(60, 215);
+            this.radioDeleteUser.Name = "radioDeleteUser";
+            this.radioDeleteUser.Size = new System.Drawing.Size(85, 19);
+            this.radioDeleteUser.TabIndex = 5;
+            this.radioDeleteUser.TabStop = true;
+            this.radioDeleteUser.Text = "Delete User";
+            this.radioDeleteUser.UseVisualStyleBackColor = true;
             // 
             // labelHeading
             // 

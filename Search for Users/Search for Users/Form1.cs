@@ -15,6 +15,12 @@ namespace Search_for_Users
         private string? _authTicket;
 
         /// <summary>
+        /// Exposes the current authentication ticket so that
+        /// other forms can call Content Server APIs.
+        /// </summary>
+        public string? AuthTicket => _authTicket;
+
+        /// <summary>
         /// Initializes the login form and all UI components.
         /// </summary>
         public Form1()
@@ -34,9 +40,15 @@ namespace Search_for_Users
             labelMessage.Text = string.Empty;
 
             // Read values entered by the user.
-            var url = txtUrl.Text?.Trim() ?? string.Empty;
-            var username = txtUsername.Text?.Trim() ?? string.Empty;
-            var password = txtPassword.Text ?? string.Empty;
+                   // var url = txtUrl.Text?.Trim() ?? string.Empty;
+                   // var username = txtUsername.Text?.Trim() ?? string.Empty;
+                   // var password = txtPassword.Text ?? string.Empty;
+
+            // For hardcoding
+            var url = "http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/auth";
+            var username = "otadmin@otds.admin";
+            var password = "P@$$w0rd!";
+
 
             // Require all three fields to be filled in before trying to log in.
             if (string.IsNullOrWhiteSpace(url) ||
