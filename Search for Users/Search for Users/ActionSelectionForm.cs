@@ -51,7 +51,17 @@ namespace Search_for_Users
         /// <summary>
         /// Delete group (DELETE /api/v2/members/{group_id}).
         /// </summary>
-        DeleteGroup = 8
+        DeleteGroup = 8,
+
+        /// <summary>
+        /// Add user to group (POST /api/v2/members/{group_id}/members).
+        /// </summary>
+        AddUserToGroup = 9,
+
+        /// <summary>
+        /// Remove user from group (DELETE /api/v2/members/{group_id}/members/{member_id}).
+        /// </summary>
+        RemoveUserFromGroup = 10
     }
 
     /// <summary>
@@ -86,7 +96,7 @@ namespace Search_for_Users
         }
 
         /// <summary>
-        /// When a Users radio button is selected, uncheck all Groups radio buttons.
+        /// When a Users radio button is selected, uncheck all Groups and Users^Groups radio buttons.
         /// </summary>
         private void UsersRadioButton_CheckedChanged(object? sender, EventArgs e)
         {
@@ -97,11 +107,13 @@ namespace Search_for_Users
                 radioCreateSubGroups.Checked = false;
                 radioUpdateGroups.Checked = false;
                 radioDeleteGroup.Checked = false;
+                radioAddUserToGroup.Checked = false;
+                radioRemoveUserFromGroup.Checked = false;
             }
         }
 
         /// <summary>
-        /// When a Groups radio button is selected, uncheck all Users radio buttons.
+        /// When a Groups radio button is selected, uncheck all Users and Users^Groups radio buttons.
         /// </summary>
         private void GroupsRadioButton_CheckedChanged(object? sender, EventArgs e)
         {
@@ -111,6 +123,29 @@ namespace Search_for_Users
                 radioCreateUser.Checked = false;
                 radioUpdateUser.Checked = false;
                 radioDeleteUser.Checked = false;
+                radioAddUserToGroup.Checked = false;
+                radioRemoveUserFromGroup.Checked = false;
+            }
+        }
+
+        /// <summary>
+        /// When a Users^Groups radio button is selected, uncheck all Users and Groups radio buttons.
+        /// </summary>
+        private void UsersGroupsRadioButton_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (sender is RadioButton radio && radio.Checked)
+            {
+                // Uncheck Users
+                radioSearchForUsers.Checked = false;
+                radioCreateUser.Checked = false;
+                radioUpdateUser.Checked = false;
+                radioDeleteUser.Checked = false;
+                // Uncheck Groups
+                radioSearchGroups.Checked = false;
+                radioCreateGroups.Checked = false;
+                radioCreateSubGroups.Checked = false;
+                radioUpdateGroups.Checked = false;
+                radioDeleteGroup.Checked = false;
             }
         }
 
@@ -132,6 +167,8 @@ namespace Search_for_Users
                 radioCreateSubGroups.Checked ? ContentServerAction.CreateSubGroups :
                 radioUpdateGroups.Checked ? ContentServerAction.UpdateGroups :
                 radioDeleteGroup.Checked ? ContentServerAction.DeleteGroup :
+                radioAddUserToGroup.Checked ? ContentServerAction.AddUserToGroup :
+                radioRemoveUserFromGroup.Checked ? ContentServerAction.RemoveUserFromGroup :
                 (ContentServerAction?)null;
 
             if (selectedAction is null)
@@ -149,6 +186,7 @@ namespace Search_for_Users
             searchForm.Show();
             this.Hide();
         }
+
     }
 }
 

@@ -66,6 +66,8 @@ namespace Search_for_Users
                 ContentServerAction.CreateSubGroups => "Create SubGroups",
                 ContentServerAction.UpdateGroups => "Update Groups",
                 ContentServerAction.DeleteGroup => "Delete Group",
+                ContentServerAction.AddUserToGroup => "Add User to Group",
+                ContentServerAction.RemoveUserFromGroup => "Remove Users from Group",
                 _ => "Search for Users"
             };
 
@@ -426,6 +428,16 @@ namespace Search_for_Users
             {
                 // For the Delete Group action, call DELETE /api/v2/members/{group_id} with group_id from CSV.
                 errorWritten = await DeleteGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+            }
+            else if (_selectedAction == ContentServerAction.AddUserToGroup)
+            {
+                // For the Add User to Group action, call POST /api/v2/members/{group_id}/members with parameters from CSV.
+                errorWritten = await AddUserToGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+            }
+            else if (_selectedAction == ContentServerAction.RemoveUserFromGroup)
+            {
+                // For the Remove User from Group action, call DELETE /api/v2/members/{group_id}/members/{member_id} with parameters from CSV.
+                errorWritten = await RemoveUserFromGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.CreateUser)
             {
@@ -1092,6 +1104,267 @@ namespace Search_for_Users
                 {
                     await errorWriter.WriteLineAsync(
                         $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}, Group ID '{groupIdValue}': {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and adds users to groups by calling POST /api/v2/members/{group_id}/members.
+        /// The CSV should contain columns for group_id and member_id. Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> AddUserToGroupFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            // Base URI for the groups API endpoint.
+            var baseUri = "http://dbscs.dcxeim.local/otcs/cs.exe/api/v2/members";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get parameters from CSV columns.
+                var groupIdText = GetColumn(values, "group_id");
+                var memberIdText = GetColumn(values, "member_id");
+
+                // Validate group_id.
+                if (string.IsNullOrWhiteSpace(groupIdText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'group_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(groupIdText, out var groupIdValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'group_id' value: '{groupIdText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Validate member_id.
+                if (string.IsNullOrWhiteSpace(memberIdText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'member_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(memberIdText, out var memberIdValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'member_id' value: '{memberIdText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Build the POST URL: /api/v2/members/{group_id}/members
+                var postUri = new Uri($"{baseUri}/{groupIdValue}/members");
+
+                // Build the JSON request body for adding user to group.
+                var requestObject = new
+                {
+                    member_id = memberIdValue
+                };
+
+                // Serialize to JSON and send POST.
+                var json = JsonSerializer.Serialize(requestObject);
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                try
+                {
+                    using var response = await client.PostAsync(postUri, content, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Added user {memberIdValue} to group {groupIdValue} from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        // Count only successful additions toward rows processed (excludes header).
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and removes users from groups by calling DELETE /api/v2/members/{group_id}/members/{member_id}.
+        /// The CSV should contain columns for group_id and member_id. Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> RemoveUserFromGroupFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            // Base URI for the groups API endpoint.
+            var baseUri = "http://dbscs.dcxeim.local/otcs/cs.exe/api/v2/members";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get parameters from CSV columns.
+                var groupIdText = GetColumn(values, "group_id");
+                var memberIdText = GetColumn(values, "member_id");
+
+                // Validate group_id.
+                if (string.IsNullOrWhiteSpace(groupIdText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'group_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(groupIdText, out var groupIdValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'group_id' value: '{groupIdText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Validate member_id.
+                if (string.IsNullOrWhiteSpace(memberIdText))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'member_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (!int.TryParse(memberIdText, out var memberIdValue))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Invalid 'member_id' value: '{memberIdText}'. Expected a number.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // Build the DELETE URL: /api/v2/members/{group_id}/members?group_id=...&member_id=...
+                var deleteUri = new Uri($"{baseUri}/{groupIdValue}/members?group_id={groupIdValue}&member_id={memberIdValue}");
+
+                try
+                {
+                    // Send DELETE request to remove user from group.
+                    using var response = await client.DeleteAsync(deleteUri, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Removed user {memberIdValue} from group {groupIdValue} from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        // Count only successful removals toward rows processed (excludes header).
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
                     errorWritten = true;
                 }
             }

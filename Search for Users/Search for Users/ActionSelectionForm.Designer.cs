@@ -19,6 +19,8 @@ namespace Search_for_Users
         private System.Windows.Forms.RadioButton radioCreateSubGroups;
         private System.Windows.Forms.RadioButton radioUpdateGroups;
         private System.Windows.Forms.RadioButton radioDeleteGroup;
+        private System.Windows.Forms.RadioButton radioAddUserToGroup;
+        private System.Windows.Forms.RadioButton radioRemoveUserFromGroup;
         private System.Windows.Forms.Button btnNext;
 
         /// <summary>
@@ -45,11 +47,11 @@ namespace Search_for_Users
             btnBack = new Button();
             panelContainer = new Panel();
             groupBox1 = new GroupBox();
-            radioSearchGroups = new RadioButton();
-            radioCreateGroups = new RadioButton();
-            radioCreateSubGroups = new RadioButton();
-            radioUpdateGroups = new RadioButton();
             radioDeleteGroup = new RadioButton();
+            radioUpdateGroups = new RadioButton();
+            radioCreateSubGroups = new RadioButton();
+            radioCreateGroups = new RadioButton();
+            radioSearchGroups = new RadioButton();
             grpLogs = new GroupBox();
             radioSearchForUsers = new RadioButton();
             radioCreateUser = new RadioButton();
@@ -57,7 +59,11 @@ namespace Search_for_Users
             radioUpdateUser = new RadioButton();
             btnNext = new Button();
             labelHeading = new Label();
+            groupBox2 = new GroupBox();
+            radioAddUserToGroup = new RadioButton();
+            radioRemoveUserFromGroup = new RadioButton();
             panelContainer.SuspendLayout();
+            groupBox2.SuspendLayout();
             groupBox1.SuspendLayout();
             grpLogs.SuspendLayout();
             SuspendLayout();
@@ -76,6 +82,7 @@ namespace Search_for_Users
             // 
             panelContainer.BackColor = SystemColors.ControlLightLight;
             panelContainer.BorderStyle = BorderStyle.FixedSingle;
+            panelContainer.Controls.Add(groupBox2);
             panelContainer.Controls.Add(groupBox1);
             panelContainer.Controls.Add(grpLogs);
             panelContainer.Controls.Add(btnNext);
@@ -100,65 +107,65 @@ namespace Search_for_Users
             groupBox1.TabStop = false;
             groupBox1.Text = "Groups";
             // 
-            // radioSearchGroups
+            // radioDeleteGroup
             // 
-            radioSearchGroups.AutoSize = true;
-            radioSearchGroups.Location = new Point(15, 32);
-            radioSearchGroups.Name = "radioSearchGroups";
-            radioSearchGroups.Size = new Size(110, 23);
-            radioSearchGroups.TabIndex = 0;
-            radioSearchGroups.TabStop = true;
-            radioSearchGroups.Text = "Search Groups";
-            radioSearchGroups.UseVisualStyleBackColor = true;
-            radioSearchGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
-            // 
-            // radioCreateGroups
-            // 
-            radioCreateGroups.AutoSize = true;
-            radioCreateGroups.Location = new Point(15, 66);
-            radioCreateGroups.Name = "radioCreateGroups";
-            radioCreateGroups.Size = new Size(110, 23);
-            radioCreateGroups.TabIndex = 1;
-            radioCreateGroups.TabStop = true;
-            radioCreateGroups.Text = "Create Groups";
-            radioCreateGroups.UseVisualStyleBackColor = true;
-            radioCreateGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
-            // 
-            // radioCreateSubGroups
-            // 
-            radioCreateSubGroups.AutoSize = true;
-            radioCreateSubGroups.Location = new Point(15, 100);
-            radioCreateSubGroups.Name = "radioCreateSubGroups";
-            radioCreateSubGroups.Size = new Size(130, 23);
-            radioCreateSubGroups.TabIndex = 2;
-            radioCreateSubGroups.TabStop = true;
-            radioCreateSubGroups.Text = "Create SubGroups";
-            radioCreateSubGroups.UseVisualStyleBackColor = true;
-            radioCreateSubGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            radioDeleteGroup.AutoSize = true;
+            radioDeleteGroup.Location = new Point(15, 168);
+            radioDeleteGroup.Name = "radioDeleteGroup";
+            radioDeleteGroup.Size = new Size(109, 23);
+            radioDeleteGroup.TabIndex = 4;
+            radioDeleteGroup.TabStop = true;
+            radioDeleteGroup.Text = "Delete Group";
+            radioDeleteGroup.UseVisualStyleBackColor = true;
+            radioDeleteGroup.CheckedChanged += GroupsRadioButton_CheckedChanged;
             // 
             // radioUpdateGroups
             // 
             radioUpdateGroups.AutoSize = true;
             radioUpdateGroups.Location = new Point(15, 134);
             radioUpdateGroups.Name = "radioUpdateGroups";
-            radioUpdateGroups.Size = new Size(115, 23);
+            radioUpdateGroups.Size = new Size(121, 23);
             radioUpdateGroups.TabIndex = 3;
             radioUpdateGroups.TabStop = true;
             radioUpdateGroups.Text = "Update Groups";
             radioUpdateGroups.UseVisualStyleBackColor = true;
             radioUpdateGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
             // 
-            // radioDeleteGroup
+            // radioCreateSubGroups
             // 
-            radioDeleteGroup.AutoSize = true;
-            radioDeleteGroup.Location = new Point(15, 168);
-            radioDeleteGroup.Name = "radioDeleteGroup";
-            radioDeleteGroup.Size = new Size(105, 23);
-            radioDeleteGroup.TabIndex = 4;
-            radioDeleteGroup.TabStop = true;
-            radioDeleteGroup.Text = "Delete Group";
-            radioDeleteGroup.UseVisualStyleBackColor = true;
-            radioDeleteGroup.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            radioCreateSubGroups.AutoSize = true;
+            radioCreateSubGroups.Location = new Point(15, 100);
+            radioCreateSubGroups.Name = "radioCreateSubGroups";
+            radioCreateSubGroups.Size = new Size(139, 23);
+            radioCreateSubGroups.TabIndex = 2;
+            radioCreateSubGroups.TabStop = true;
+            radioCreateSubGroups.Text = "Create SubGroups";
+            radioCreateSubGroups.UseVisualStyleBackColor = true;
+            radioCreateSubGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            // 
+            // radioCreateGroups
+            // 
+            radioCreateGroups.AutoSize = true;
+            radioCreateGroups.Location = new Point(15, 66);
+            radioCreateGroups.Name = "radioCreateGroups";
+            radioCreateGroups.Size = new Size(116, 23);
+            radioCreateGroups.TabIndex = 1;
+            radioCreateGroups.TabStop = true;
+            radioCreateGroups.Text = "Create Groups";
+            radioCreateGroups.UseVisualStyleBackColor = true;
+            radioCreateGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
+            // 
+            // radioSearchGroups
+            // 
+            radioSearchGroups.AutoSize = true;
+            radioSearchGroups.Location = new Point(15, 32);
+            radioSearchGroups.Name = "radioSearchGroups";
+            radioSearchGroups.Size = new Size(116, 23);
+            radioSearchGroups.TabIndex = 0;
+            radioSearchGroups.TabStop = true;
+            radioSearchGroups.Text = "Search Groups";
+            radioSearchGroups.UseVisualStyleBackColor = true;
+            radioSearchGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
             // 
             // grpLogs
             // 
@@ -242,6 +249,42 @@ namespace Search_for_Users
             labelHeading.TabIndex = 1;
             labelHeading.Text = "Please Select the action to be performed";
             // 
+            // groupBox2
+            // 
+            groupBox2.Controls.Add(radioRemoveUserFromGroup);
+            groupBox2.Controls.Add(radioAddUserToGroup);
+            groupBox2.Font = new Font("Segoe UI", 10F);
+            groupBox2.Location = new Point(410, 84);
+            groupBox2.Name = "groupBox2";
+            groupBox2.Size = new Size(200, 145);
+            groupBox2.TabIndex = 17;
+            groupBox2.TabStop = false;
+            groupBox2.Text = "Users Groups";
+            // 
+            // radioAddUserToGroup
+            // 
+            radioAddUserToGroup.AutoSize = true;
+            radioAddUserToGroup.Location = new Point(15, 32);
+            radioAddUserToGroup.Name = "radioAddUserToGroup";
+            radioAddUserToGroup.Size = new Size(138, 23);
+            radioAddUserToGroup.TabIndex = 0;
+            radioAddUserToGroup.TabStop = true;
+            radioAddUserToGroup.Text = "Add User to Group";
+            radioAddUserToGroup.UseVisualStyleBackColor = true;
+            radioAddUserToGroup.CheckedChanged += UsersGroupsRadioButton_CheckedChanged;
+            // 
+            // radioRemoveUserFromGroup
+            // 
+            radioRemoveUserFromGroup.AutoSize = true;
+            radioRemoveUserFromGroup.Location = new Point(15, 66);
+            radioRemoveUserFromGroup.Name = "radioRemoveUserFromGroup";
+            radioRemoveUserFromGroup.Size = new Size(175, 23);
+            radioRemoveUserFromGroup.TabIndex = 1;
+            radioRemoveUserFromGroup.TabStop = true;
+            radioRemoveUserFromGroup.Text = "Remove Users from Group";
+            radioRemoveUserFromGroup.UseVisualStyleBackColor = true;
+            radioRemoveUserFromGroup.CheckedChanged += UsersGroupsRadioButton_CheckedChanged;
+            // 
             // ActionSelectionForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -257,6 +300,8 @@ namespace Search_for_Users
             groupBox1.PerformLayout();
             grpLogs.ResumeLayout(false);
             grpLogs.PerformLayout();
+            groupBox2.ResumeLayout(false);
+            groupBox2.PerformLayout();
             ResumeLayout(false);
         }
 
@@ -264,6 +309,7 @@ namespace Search_for_Users
 
         private GroupBox grpLogs;
         private GroupBox groupBox1;
+        private GroupBox groupBox2;
     }
 }
 
