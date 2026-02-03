@@ -55,11 +55,20 @@ namespace Search_for_Users
 
                 var logContent = File.ReadAllText(_logFilePath);
 
-                // For Delete User or Delete Group, show a plain single-column view with log entries
+                // For Delete User, Delete Group, or Remove User from Group,
+                // show a plain single-column view with log entries
                 if (_selectedAction == ContentServerAction.DeleteUser || 
-                    _selectedAction == ContentServerAction.DeleteGroup)
+                    _selectedAction == ContentServerAction.DeleteGroup ||
+                    _selectedAction == ContentServerAction.RemoveUserFromGroup)
                 {
                     LoadPlainLogView(logContent);
+                    return;
+                }
+
+                // For Add User to Group, show User and Group columns
+                if (_selectedAction == ContentServerAction.AddUserToGroup)
+                {
+                    LoadAddUserToGroupView(logContent);
                     return;
                 }
 
@@ -228,6 +237,94 @@ namespace Search_for_Users
             }
 
             lblRecordCount.Text = $"Groups: {groups.Count}";
+        }
+
+        /// <summary>
+        /// Loads the log file in an add user to group view with User and Group columns.
+        /// Used for Add User to Group action.
+        /// </summary>
+        private void LoadAddUserToGroupView(string logContent)
+        {
+            // Clear existing columns and set up columns for user-group assignments
+            dataGridViewReport.Columns.Clear();
+            dataGridViewReport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+            var userColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "colUser",
+                HeaderText = "User",
+                ReadOnly = true
+            };
+            dataGridViewReport.Columns.Add(userColumn);
+
+            var groupColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "colGroup",
+                HeaderText = "Group",
+                ReadOnly = true
+            };
+            dataGridViewReport.Columns.Add(groupColumn);
+
+            // Extract user-group assignments from log
+            var assignments = ExtractUserGroupAssignmentsFromLog(logContent);
+
+            foreach (var assignment in assignments)
+            {
+                dataGridViewReport.Rows.Add(assignment.User, assignment.Group);
+            }
+
+            lblRecordCount.Text = $"Assignments: {assignments.Count}";
+        }
+
+        /// <summary>
+        /// Extracts user-group assignment records from the log file content.
+        /// Parses the success messages to extract user and group names.
+        /// </summary>
+        private List<UserGroupAssignment> ExtractUserGroupAssignmentsFromLog(string logContent)
+        {
+            var assignments = new List<UserGroupAssignment>();
+
+            // Parse the log content for success messages like:
+            // [SUCCESS] ... - Added user 'BJaricha@Active Directory' to group 'HarareGroup@Content Server Members' ...
+            var successPattern = new System.Text.RegularExpressions.Regex(
+                @"\[SUCCESS\].*Added user '([^']+)' to group '([^']+)'",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            var matches = successPattern.Matches(logContent);
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                if (match.Groups.Count >= 3)
+                {
+                    var userId = match.Groups[1].Value;
+                    var groupId = match.Groups[2].Value;
+
+                    // Extract just the name part (before the @ symbol) for cleaner display
+                    var userName = ExtractNameFromId(userId);
+                    var groupName = ExtractNameFromId(groupId);
+
+                    assignments.Add(new UserGroupAssignment
+                    {
+                        User = userName,
+                        Group = groupName
+                    });
+                }
+            }
+
+            return assignments;
+        }
+
+        /// <summary>
+        /// Extracts the name part from an ID in the format "name@partition".
+        /// </summary>
+        private static string ExtractNameFromId(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return string.Empty;
+            }
+
+            var atIndex = id.IndexOf('@');
+            return atIndex > 0 ? id.Substring(0, atIndex) : id;
         }
 
         /// <summary>
@@ -990,9 +1087,10 @@ namespace Search_for_Users
                 {
                     using var writer = new StreamWriter(dialog.FileName, false, Encoding.UTF8);
                     
-                    // Handle plain log view (Delete User or Delete Group) vs standard user data view
+                    // Handle plain log view (Delete User, Delete Group, Remove User from Group) vs standard user data view
                     if (_selectedAction == ContentServerAction.DeleteUser ||
-                        _selectedAction == ContentServerAction.DeleteGroup)
+                        _selectedAction == ContentServerAction.DeleteGroup ||
+                        _selectedAction == ContentServerAction.RemoveUserFromGroup)
                     {
                         // Write header for plain log view.
                         writer.WriteLine("Log Entry");
@@ -1005,6 +1103,26 @@ namespace Search_for_Users
                                 var logEntry = row.Cells[0].Value?.ToString() ?? string.Empty;
                                 // Escape values for CSV.
                                 writer.WriteLine($"\"{logEntry.Replace("\"", "\"\"")}\"");
+                            }
+                        }
+                    }
+                    else if (_selectedAction == ContentServerAction.AddUserToGroup)
+                    {
+                        // Write header for user-group assignments view.
+                        writer.WriteLine("User,Group");
+
+                        // Write data rows.
+                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        {
+                            if (!row.IsNewRow)
+                            {
+                                var user = row.Cells[0].Value?.ToString() ?? string.Empty;
+                                var group = row.Cells[1].Value?.ToString() ?? string.Empty;
+
+                                // Escape values for CSV.
+                                writer.WriteLine(
+                                    $"\"{user.Replace("\"", "\"\"")}\","
+                                    + $"\"{group.Replace("\"", "\"\"")}\"");
                             }
                         }
                     }
@@ -1193,6 +1311,15 @@ namespace Search_for_Users
             public string PartitionName { get; set; } = string.Empty;
             public string ParentGroupName { get; set; } = string.Empty;
             public string SubGroupName { get; set; } = string.Empty;
+        }
+
+        /// <summary>
+        /// Simple record class to hold user-group assignment data.
+        /// </summary>
+        private class UserGroupAssignment
+        {
+            public string User { get; set; } = string.Empty;
+            public string Group { get; set; } = string.Empty;
         }
     }
 }

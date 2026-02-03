@@ -479,8 +479,8 @@ namespace Search_for_Users
             }
             else if (_selectedAction == ContentServerAction.AddUserToGroup)
             {
-                // For the Add User to Group action, call POST /api/v2/members/{group_id}/members with parameters from CSV.
-                errorWritten = await AddUserToGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Add User to Group action, call POST /otdsws/rest/users/{user_id}/memberof with parameters from CSV.
+                errorWritten = await AddOtdsUserToGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.RemoveUserFromGroup)
             {
@@ -1863,6 +1863,122 @@ namespace Search_for_Users
                 {
                     await errorWriter.WriteLineAsync(
                         $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}, Group ID '{groupIdValue}': {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Adds users to groups in OTDS by calling POST /otdsws/rest/users/{user_id}/memberof.
+        /// The CSV should contain columns for user_id and group_id.
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> AddOtdsUserToGroupFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var baseUri = "http://dbscs.dcxeim.local:8080/otdsws/rest/users";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                var userId = GetColumn(values, "user_id");
+                var groupId = GetColumn(values, "group_id");
+
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'user_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(groupId))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'group_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the POST URL: /otdsws/rest/users/{user_id}/memberof
+                    var addToGroupUri = new Uri($"{baseUri}/{Uri.EscapeDataString(userId)}/memberof");
+
+                    // Build the request body with the group ID in stringList.
+                    var bodyObject = new Dictionary<string, object>
+                    {
+                        ["stringList"] = new[] { groupId }
+                    };
+
+                    using var requestContent = new StringContent(
+                        JsonSerializer.Serialize(bodyObject),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    using var response = await client.PostAsync(addToGroupUri, requestContent, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Added user '{userId}' to group '{groupId}' from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
                     errorWritten = true;
                 }
             }
