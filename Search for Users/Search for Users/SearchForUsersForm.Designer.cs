@@ -27,6 +27,7 @@ namespace Search_for_Users
         private System.Windows.Forms.RadioButton radioInfoLog;
         private System.Windows.Forms.RadioButton radioErrorLog;
         private System.Windows.Forms.Button btnOpenLogLocation;
+        private System.Windows.Forms.Button btnViewFile;
         private System.Windows.Forms.Label lblLogStatus;
         private System.Windows.Forms.Label lblTotalFiles;
         private System.Windows.Forms.Label lblProcessedFiles;
@@ -73,6 +74,7 @@ namespace Search_for_Users
             lblLogStatus = new Label();
             grpLogs = new GroupBox();
             btnOpenLogLocation = new Button();
+            btnViewFile = new Button();
             radioErrorLog = new RadioButton();
             radioInfoLog = new RadioButton();
             lblStartRow = new Label();
@@ -243,6 +245,7 @@ namespace Search_for_Users
             // 
             // grpLogs
             // 
+            grpLogs.Controls.Add(btnViewFile);
             grpLogs.Controls.Add(btnOpenLogLocation);
             grpLogs.Controls.Add(radioErrorLog);
             grpLogs.Controls.Add(radioInfoLog);
@@ -255,13 +258,23 @@ namespace Search_for_Users
             // 
             // btnOpenLogLocation
             // 
-            btnOpenLogLocation.Location = new Point(6, 170);
+            btnOpenLogLocation.Location = new Point(6, 105);
             btnOpenLogLocation.Name = "btnOpenLogLocation";
             btnOpenLogLocation.Size = new Size(124, 30);
             btnOpenLogLocation.TabIndex = 2;
             btnOpenLogLocation.Text = "Open Log Location";
             btnOpenLogLocation.UseVisualStyleBackColor = true;
             btnOpenLogLocation.Click += btnOpenLogLocation_Click;
+            // 
+            // btnViewFile
+            // 
+            btnViewFile.Location = new Point(6, 140);
+            btnViewFile.Name = "btnViewFile";
+            btnViewFile.Size = new Size(124, 30);
+            btnViewFile.TabIndex = 3;
+            btnViewFile.Text = "View File";
+            btnViewFile.UseVisualStyleBackColor = true;
+            btnViewFile.Click += btnViewFile_Click;
             // 
             // radioErrorLog
             // 

@@ -21,6 +21,7 @@ namespace Search_for_Users
         private System.Windows.Forms.RadioButton radioDeleteGroup;
         private System.Windows.Forms.RadioButton radioAddUserToGroup;
         private System.Windows.Forms.RadioButton radioRemoveUserFromGroup;
+        private System.Windows.Forms.RadioButton radioSearchUserById;
         private System.Windows.Forms.Button btnNext;
 
         /// <summary>
@@ -54,6 +55,7 @@ namespace Search_for_Users
             radioSearchGroups = new RadioButton();
             grpLogs = new GroupBox();
             radioSearchForUsers = new RadioButton();
+            radioSearchUserById = new RadioButton();
             radioCreateUser = new RadioButton();
             radioDeleteUser = new RadioButton();
             radioUpdateUser = new RadioButton();
@@ -170,13 +172,14 @@ namespace Search_for_Users
             // grpLogs
             // 
             grpLogs.Controls.Add(radioSearchForUsers);
+            grpLogs.Controls.Add(radioSearchUserById);
             grpLogs.Controls.Add(radioCreateUser);
             grpLogs.Controls.Add(radioDeleteUser);
             grpLogs.Controls.Add(radioUpdateUser);
             grpLogs.Font = new Font("Segoe UI", 10F);
             grpLogs.Location = new Point(21, 84);
             grpLogs.Name = "grpLogs";
-            grpLogs.Size = new Size(155, 211);
+            grpLogs.Size = new Size(165, 245);
             grpLogs.TabIndex = 15;
             grpLogs.TabStop = false;
             grpLogs.Text = "Users";
@@ -187,19 +190,31 @@ namespace Search_for_Users
             radioSearchForUsers.Location = new Point(15, 32);
             radioSearchForUsers.Name = "radioSearchForUsers";
             radioSearchForUsers.Size = new Size(126, 23);
-            radioSearchForUsers.TabIndex = 2;
+            radioSearchForUsers.TabIndex = 0;
             radioSearchForUsers.TabStop = true;
             radioSearchForUsers.Text = "Search for Users";
             radioSearchForUsers.UseVisualStyleBackColor = true;
             radioSearchForUsers.CheckedChanged += UsersRadioButton_CheckedChanged;
             // 
+            // radioSearchUserById
+            // 
+            radioSearchUserById.AutoSize = true;
+            radioSearchUserById.Location = new Point(15, 66);
+            radioSearchUserById.Name = "radioSearchUserById";
+            radioSearchUserById.Size = new Size(138, 23);
+            radioSearchUserById.TabIndex = 1;
+            radioSearchUserById.TabStop = true;
+            radioSearchUserById.Text = "Search User by ID";
+            radioSearchUserById.UseVisualStyleBackColor = true;
+            radioSearchUserById.CheckedChanged += SearchUserByIdRadioButton_CheckedChanged;
+            // 
             // radioCreateUser
             // 
             radioCreateUser.AutoSize = true;
-            radioCreateUser.Location = new Point(15, 66);
+            radioCreateUser.Location = new Point(15, 100);
             radioCreateUser.Name = "radioCreateUser";
             radioCreateUser.Size = new Size(99, 23);
-            radioCreateUser.TabIndex = 3;
+            radioCreateUser.TabIndex = 2;
             radioCreateUser.TabStop = true;
             radioCreateUser.Text = "Create User";
             radioCreateUser.UseVisualStyleBackColor = true;
@@ -208,10 +223,10 @@ namespace Search_for_Users
             // radioDeleteUser
             // 
             radioDeleteUser.AutoSize = true;
-            radioDeleteUser.Location = new Point(15, 137);
+            radioDeleteUser.Location = new Point(15, 168);
             radioDeleteUser.Name = "radioDeleteUser";
             radioDeleteUser.Size = new Size(98, 23);
-            radioDeleteUser.TabIndex = 5;
+            radioDeleteUser.TabIndex = 4;
             radioDeleteUser.TabStop = true;
             radioDeleteUser.Text = "Delete User";
             radioDeleteUser.UseVisualStyleBackColor = true;
@@ -220,10 +235,10 @@ namespace Search_for_Users
             // radioUpdateUser
             // 
             radioUpdateUser.AutoSize = true;
-            radioUpdateUser.Location = new Point(15, 101);
+            radioUpdateUser.Location = new Point(15, 134);
             radioUpdateUser.Name = "radioUpdateUser";
             radioUpdateUser.Size = new Size(104, 23);
-            radioUpdateUser.TabIndex = 4;
+            radioUpdateUser.TabIndex = 3;
             radioUpdateUser.TabStop = true;
             radioUpdateUser.Text = "Update User";
             radioUpdateUser.UseVisualStyleBackColor = true;

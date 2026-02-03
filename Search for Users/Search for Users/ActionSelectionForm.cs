@@ -61,7 +61,12 @@ namespace Search_for_Users
         /// <summary>
         /// Remove user from group (DELETE /api/v2/members/{group_id}/members/{member_id}).
         /// </summary>
-        RemoveUserFromGroup = 10
+        RemoveUserFromGroup = 10,
+
+        /// <summary>
+        /// Search user by ID (GET /otdsws/rest/users/{user_id}).
+        /// </summary>
+        SearchUserById = 11
     }
 
     /// <summary>
@@ -107,6 +112,30 @@ namespace Search_for_Users
                 radioCreateSubGroups.Checked = false;
                 radioUpdateGroups.Checked = false;
                 radioDeleteGroup.Checked = false;
+                radioAddUserToGroup.Checked = false;
+                radioRemoveUserFromGroup.Checked = false;
+            }
+        }
+
+        /// <summary>
+        /// Unchecks all other radio buttons when Search User by ID is selected.
+        /// </summary>
+        private void SearchUserByIdRadioButton_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (sender is RadioButton radio && radio.Checked)
+            {
+                // Uncheck Users (except this one)
+                radioSearchForUsers.Checked = false;
+                radioCreateUser.Checked = false;
+                radioUpdateUser.Checked = false;
+                radioDeleteUser.Checked = false;
+                // Uncheck Groups
+                radioSearchGroups.Checked = false;
+                radioCreateGroups.Checked = false;
+                radioCreateSubGroups.Checked = false;
+                radioUpdateGroups.Checked = false;
+                radioDeleteGroup.Checked = false;
+                // Uncheck Users Groups
                 radioAddUserToGroup.Checked = false;
                 radioRemoveUserFromGroup.Checked = false;
             }
@@ -159,6 +188,7 @@ namespace Search_for_Users
             // Determine which action the user selected.
             var selectedAction =
                 radioSearchForUsers.Checked ? ContentServerAction.SearchForUsers :
+                radioSearchUserById.Checked ? ContentServerAction.SearchUserById :
                 radioCreateUser.Checked ? ContentServerAction.CreateUser :
                 radioUpdateUser.Checked ? ContentServerAction.UpdateUser :
                 radioDeleteUser.Checked ? ContentServerAction.DeleteUser :

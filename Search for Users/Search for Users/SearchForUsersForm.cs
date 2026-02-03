@@ -41,6 +41,9 @@ namespace Search_for_Users
         // Selected action that determines which API endpoint/method is used.
         private readonly ContentServerAction _selectedAction;
 
+        // Path to the last created info log file (for "View File" button).
+        private string? _lastInfoLogPath;
+
         /// <summary>
         /// Creates the Search for Users form and remembers the
         /// previous (action selection) and login forms so that
@@ -58,6 +61,7 @@ namespace Search_for_Users
             // This keeps the UI the same while making the behavior explicit.
             var actionName = selectedAction switch
             {
+                ContentServerAction.SearchUserById => "Search User by ID",
                 ContentServerAction.CreateUser => "Create User",
                 ContentServerAction.UpdateUser => "Update User",
                 ContentServerAction.DeleteUser => "Delete User",
@@ -132,6 +136,43 @@ namespace Search_for_Users
                 FileName = _logFolder,
                 UseShellExecute = true
             });
+        }
+
+        /// <summary>
+        /// Opens the report form to display the contents of the last
+        /// created info log file in a filtered, tabular view.
+        /// </summary>
+        private void btnViewFile_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_lastInfoLogPath) || !File.Exists(_lastInfoLogPath))
+            {
+                MessageBox.Show(
+                    "No log file has been created yet. Please run a search first.",
+                    "View File",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            // Build the report form title based on the selected action.
+            var actionName = _selectedAction switch
+            {
+                ContentServerAction.SearchUserById => "Search User by ID",
+                ContentServerAction.CreateUser => "Create User",
+                ContentServerAction.UpdateUser => "Update User",
+                ContentServerAction.DeleteUser => "Delete User",
+                ContentServerAction.SearchGroups => "Search Groups",
+                ContentServerAction.CreateGroups => "Create Groups",
+                ContentServerAction.CreateSubGroups => "Create SubGroups",
+                ContentServerAction.UpdateGroups => "Update Groups",
+                ContentServerAction.DeleteGroup => "Delete Group",
+                ContentServerAction.AddUserToGroup => "Add User to Group",
+                ContentServerAction.RemoveUserFromGroup => "Remove Users from Group",
+                _ => "Search for Users"
+            };
+
+            var reportForm = new ReportForm(_lastInfoLogPath, $"{actionName} Report", _selectedAction);
+            reportForm.Show();
         }
 
         /// <summary>
@@ -299,6 +340,9 @@ namespace Search_for_Users
                 var infoLogPath = Path.Combine(_logFolder!, $"{fileNameWithoutExt}_{timestamp}.log");
                 var errorLogPath = Path.Combine(_logFolder!, $"{fileNameWithoutExt}_{timestamp}_error.log");
 
+                // Remember the last info log path so "View File" can open it.
+                _lastInfoLogPath = infoLogPath;
+
                 using var infoWriter = new StreamWriter(infoLogPath, append: true, Encoding.UTF8);
                 using var errorWriter = new StreamWriter(errorLogPath, append: true, Encoding.UTF8);
 
@@ -394,40 +438,44 @@ namespace Search_for_Users
                 Timeout = TimeSpan.FromSeconds(30)
             };
 
-            // Attach the OTCSTicket header so the API knows who we are.
+            // Attach the ticket header so the API knows who we are.
+            // We now authenticate against OTDS (returns an *OTDSSSO* ticket).
+            // Keep OTCSTicket as well for any OTCS endpoints still in use.
+            client.DefaultRequestHeaders.Add("OTDSTicket", _loginForm.AuthTicket);
             client.DefaultRequestHeaders.Add("OTCSTicket", _loginForm.AuthTicket);
 
             // Execute the appropriate API call based on the selected action.
             if (_selectedAction == ContentServerAction.SearchForUsers)
             {
-                // For the Search action, call GET /members once per CSV file.
-                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
-                errorWritten = await LogMembersGetOnceAsync(client, membersUri, infoWriter, errorWriter, cancellationToken);
+                // For the Search for Users action, call POST /otdsws/rest/users/search for each CSV data row.
+                // Parameters come from CSV columns (partitionName, state).
+                errorWritten = await SearchOtdsUsersFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.SearchGroups)
             {
-                // For the Search Groups action, call GET /api/v2/members with parameters from CSV.
-                errorWritten = await SearchGroupsFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Search Groups action, call GET /otdsws/rest/groups.
+                // If no CSV data, return all groups. If CSV has parameters, use them.
+                errorWritten = await SearchOtdsGroupsAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.CreateGroups)
             {
-                // For the Create Groups action, call POST /api/v2/members with parameters from CSV.
-                errorWritten = await CreateGroupsFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Create Groups action, call POST /otdsws/rest/groups with parameters from CSV.
+                errorWritten = await CreateOtdsGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.CreateSubGroups)
             {
-                // For the Create SubGroups action, call POST /api/v2/members with parameters from CSV including parent_id.
-                errorWritten = await CreateSubGroupsFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Create SubGroups action, call POST /otdsws/rest/groups/subgroup with parameters from CSV.
+                errorWritten = await CreateOtdsSubGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.UpdateGroups)
             {
-                // For the Update Groups action, call PUT /api/v2/members/{group_id} with parameters from CSV.
-                errorWritten = await UpdateGroupsFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Update Groups action, call PUT /otdsws/rest/group/{group_id} with parameters from CSV.
+                errorWritten = await UpdateOtdsGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.DeleteGroup)
             {
-                // For the Delete Group action, call DELETE /api/v2/members/{group_id} with group_id from CSV.
-                errorWritten = await DeleteGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Delete Group action, call DELETE /otdsws/rest/group/{group_id} with group_id from CSV.
+                errorWritten = await DeleteOtdsGroupFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.AddUserToGroup)
             {
@@ -441,23 +489,27 @@ namespace Search_for_Users
             }
             else if (_selectedAction == ContentServerAction.CreateUser)
             {
-                // For the Create action, call POST /members for each CSV data row (starting at startRow).
-                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
-                errorWritten = await CreateUsersFromCsvAsync(client, membersUri, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Create User action, call POST /otdsws/rest/users for each CSV data row.
+                // Parameters come from CSV columns (userPartitionID, id, name, cn, sn, givenName, displayName, mail, userPassword).
+                errorWritten = await CreateOtdsUsersFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+            }
+            else if (_selectedAction == ContentServerAction.SearchUserById)
+            {
+                // For the Search User by ID action, call GET /otdsws/rest/users/{user_id} for each CSV data row.
+                // The user_id parameter comes from CSV.
+                errorWritten = await SearchUserByIdFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.UpdateUser)
             {
-                // For the Update action, call PUT /members/{user_id} for each CSV data row.
-                // The first column is the user_id, and all other columns are fields to update.
-                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
-                errorWritten = await UpdateUsersFromCsvAsync(client, membersUri, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Update User action, call PUT /otdsws/rest/users/{user_id} for each CSV data row.
+                // The user_id column identifies which user to update, other columns are fields to update.
+                errorWritten = await UpdateOtdsUserFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.DeleteUser)
             {
-                // For the Delete action, call DELETE /members/{user_id} for each CSV data row.
-                // The user_id comes from the CSV file (typically the first column).
-                var membersUri = new Uri("http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/members");
-                errorWritten = await DeleteUsersFromCsvAsync(client, membersUri, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                // For the Delete User action, call DELETE /otdsws/rest/users/{user_id} for each CSV data row.
+                // The user_id comes from the CSV file.
+                errorWritten = await DeleteOtdsUserFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
             }
 
             // Let the caller know whether any error content was written.
@@ -557,6 +609,713 @@ namespace Search_for_Users
                         await infoWriter.WriteLineAsync(
                             $"[SUCCESS] {DateTime.Now:u} - Searched groups from Row {dataRowNumber} (where_type={whereTypeValue}, where_name={whereName}):{Environment.NewLine}{formatted}");
                         // Count only successful searches toward rows processed (excludes header).
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Searches for groups in OTDS by calling GET /otdsws/rest/groups.
+        /// If CSV has parameters, they are added as query parameters.
+        /// If no CSV data is provided, returns all groups.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> SearchOtdsGroupsAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+            var baseUri = "http://dbscs.dcxeim.local:8080/otdsws/rest/groups";
+
+            // Check if we have CSV data (more than just a header line)
+            var hasData = lines.Length > 1 && lines.Skip(1).Any(l => !string.IsNullOrWhiteSpace(l));
+
+            if (!hasData)
+            {
+                // No CSV data - return all groups
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    using var response = await client.GetAsync(baseUri, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Retrieved all OTDS groups:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - {ex}");
+                    errorWritten = true;
+                }
+
+                return errorWritten;
+            }
+
+            // CSV has data - use parameters from each row
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            // Iterate data rows
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                try
+                {
+                    // Build query string from all CSV columns
+                    var queryParams = new List<string>();
+                    for (var j = 0; j < headers.Length && j < values.Length; j++)
+                    {
+                        var headerName = headers[j].Trim();
+                        var value = values[j].Trim();
+                        if (!string.IsNullOrWhiteSpace(headerName) && !string.IsNullOrWhiteSpace(value))
+                        {
+                            queryParams.Add($"{Uri.EscapeDataString(headerName)}={Uri.EscapeDataString(value)}");
+                        }
+                    }
+
+                    var requestUri = queryParams.Count > 0
+                        ? $"{baseUri}?{string.Join("&", queryParams)}"
+                        : baseUri;
+
+                    using var response = await client.GetAsync(requestUri, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Searched OTDS groups from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Creates groups in OTDS by calling POST /otdsws/rest/groups.
+        /// The CSV should contain columns for userPartitionID and name (group name).
+        /// Optionally can include description.
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> CreateOtdsGroupFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var createGroupUri = new Uri("http://dbscs.dcxeim.local:8080/otdsws/rest/groups");
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get required parameters from CSV columns.
+                var userPartitionID = GetColumn(values, "userPartitionID");
+                var name = GetColumn(values, "name");
+                var description = GetColumn(values, "description");
+
+                // Validate required fields.
+                if (string.IsNullOrWhiteSpace(userPartitionID))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'userPartitionID' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'name' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the values array with cn (common name).
+                    var groupValues = new List<object>
+                    {
+                        new { name = "cn", values = new[] { name } }
+                    };
+
+                    // Build the request body.
+                    var bodyObject = new Dictionary<string, object>
+                    {
+                        ["userPartitionID"] = userPartitionID,
+                        ["name"] = name,
+                        ["values"] = groupValues
+                    };
+
+                    // Add description if provided.
+                    if (!string.IsNullOrWhiteSpace(description))
+                    {
+                        bodyObject["description"] = description;
+                    }
+
+                    using var requestContent = new StringContent(
+                        JsonSerializer.Serialize(bodyObject),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    using var response = await client.PostAsync(createGroupUri, requestContent, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Created OTDS group (name='{name}', partition='{userPartitionID}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Creates subgroups in OTDS by calling POST /otdsws/rest/groups/subgroup.
+        /// The CSV should contain columns for userPartitionID, name, and location (parent group location).
+        /// Optionally can include parent_group_id which will be used to look up the parent location.
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> CreateOtdsSubGroupFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var createSubGroupUri = new Uri("http://dbscs.dcxeim.local:8080/otdsws/rest/groups/subgroup");
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get required parameters from CSV columns.
+                var userPartitionID = GetColumn(values, "userPartitionID");
+                var name = GetColumn(values, "name");
+                var location = GetColumn(values, "location");
+                var parentGroupId = GetColumn(values, "parent_group_id");
+
+                // Validate required fields.
+                if (string.IsNullOrWhiteSpace(userPartitionID))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'userPartitionID' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'name' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                // If location is not provided but parent_group_id is, look up the parent group's location.
+                if (string.IsNullOrWhiteSpace(location) && !string.IsNullOrWhiteSpace(parentGroupId))
+                {
+                    try
+                    {
+                        var parentGroupUri = new Uri($"http://dbscs.dcxeim.local:8080/otdsws/rest/group/{Uri.EscapeDataString(parentGroupId)}");
+                        using var parentResponse = await client.GetAsync(parentGroupUri, cancellationToken);
+                        if (parentResponse.IsSuccessStatusCode)
+                        {
+                            var parentBody = await parentResponse.Content.ReadAsStringAsync(cancellationToken);
+                            using var parentDoc = JsonDocument.Parse(parentBody);
+                            if (parentDoc.RootElement.TryGetProperty("location", out var locationProp) &&
+                                locationProp.ValueKind == JsonValueKind.String)
+                            {
+                                location = locationProp.GetString() ?? string.Empty;
+                            }
+                        }
+                        else
+                        {
+                            await errorWriter.WriteLineAsync(
+                                $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Failed to look up parent group '{parentGroupId}'.");
+                            errorWritten = true;
+                            continue;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Error looking up parent group: {ex.Message}");
+                        errorWritten = true;
+                        continue;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(location))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing 'location' or 'parent_group_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the values array with cn (common name).
+                    var groupValues = new List<object>
+                    {
+                        new { name = "cn", values = new[] { name } }
+                    };
+
+                    // Build the request body.
+                    var bodyObject = new Dictionary<string, object>
+                    {
+                        ["userPartitionID"] = userPartitionID,
+                        ["name"] = name,
+                        ["location"] = location,
+                        ["values"] = groupValues
+                    };
+
+                    using var requestContent = new StringContent(
+                        JsonSerializer.Serialize(bodyObject),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    using var response = await client.PostAsync(createSubGroupUri, requestContent, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        // Extract parent group name from location for logging.
+                        var parentName = ExtractParentGroupNameFromLocation(location);
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Created OTDS subgroup (name='{name}', parent='{parentName}', partition='{userPartitionID}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Extracts the parent group name from a location DN string.
+        /// Example: "oTGroup=681fded9-2c69-4ea7-acdc-0ab6e8e110ec,orgunit=groups,partition=Content Server Members,dc=identity,dc=opentext,dc=net"
+        /// </summary>
+        private static string ExtractParentGroupNameFromLocation(string location)
+        {
+            // The location is a DN - we can try to extract meaningful info from it
+            // For now, return a shortened version or the partition name
+            if (string.IsNullOrWhiteSpace(location))
+            {
+                return string.Empty;
+            }
+
+            // Try to extract partition name
+            var partitionMatch = System.Text.RegularExpressions.Regex.Match(location, @"partition=([^,]+)");
+            if (partitionMatch.Success)
+            {
+                return $"(in {partitionMatch.Groups[1].Value})";
+            }
+
+            // Return a truncated version if too long
+            return location.Length > 50 ? location.Substring(0, 47) + "..." : location;
+        }
+
+        /// <summary>
+        /// Updates groups in OTDS by calling PUT /otdsws/rest/group/{group_id}.
+        /// The CSV should contain a group_id column plus any columns for fields to update
+        /// (e.g., name, description, cn).
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> UpdateOtdsGroupFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var baseUri = "http://dbscs.dcxeim.local:8080/otdsws/rest/group";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                var groupId = GetColumn(values, "group_id");
+
+                if (string.IsNullOrWhiteSpace(groupId))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'group_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the values array from columns that should go into values array.
+                    // Known field names that OTDS supports in the values array for groups.
+                    var knownValueFields = new[] { "cn", "description" };
+                    var groupValues = new List<object>();
+
+                    foreach (var fieldName in knownValueFields)
+                    {
+                        var fieldValue = GetColumn(values, fieldName);
+                        if (!string.IsNullOrWhiteSpace(fieldValue))
+                        {
+                            groupValues.Add(new { name = fieldName, values = new[] { fieldValue } });
+                        }
+                    }
+
+                    // Build the request body.
+                    var bodyObject = new Dictionary<string, object>();
+
+                    // Add name if provided (top-level field).
+                    var name = GetColumn(values, "name");
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        bodyObject["name"] = name;
+                    }
+
+                    // Add values array if we have any fields.
+                    if (groupValues.Count > 0)
+                    {
+                        bodyObject["values"] = groupValues;
+                    }
+
+                    if (bodyObject.Count == 0)
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: No fields to update. Provide at least one of: name, cn, description");
+                        errorWritten = true;
+                        continue;
+                    }
+
+                    // Build the PUT URL: /otdsws/rest/group/{group_id}
+                    var updateGroupUri = new Uri($"{baseUri}/{Uri.EscapeDataString(groupId)}");
+
+                    using var requestContent = new StringContent(
+                        JsonSerializer.Serialize(bodyObject),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    using var response = await client.PutAsync(updateGroupUri, requestContent, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        // Build a summary of updated fields.
+                        var updatedFields = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(name)) updatedFields.Add("name");
+                        updatedFields.AddRange(knownValueFields.Where(f => !string.IsNullOrWhiteSpace(GetColumn(values, f))));
+                        
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Updated OTDS group (group_id='{groupId}', fields: {string.Join(", ", updatedFields)}) from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Deletes groups in OTDS by calling DELETE /otdsws/rest/group/{group_id}.
+        /// The CSV should contain a group_id column identifying the group to delete.
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> DeleteOtdsGroupFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var baseUri = "http://dbscs.dcxeim.local:8080/otdsws/rest/group";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                var groupId = GetColumn(values, "group_id");
+
+                if (string.IsNullOrWhiteSpace(groupId))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'group_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the DELETE URL: /otdsws/rest/group/{group_id}
+                    var deleteGroupUri = new Uri($"{baseUri}/{Uri.EscapeDataString(groupId)}");
+
+                    using var response = await client.DeleteAsync(deleteGroupUri, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Deleted OTDS group (group_id='{groupId}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
                         _rowsProcessed++;
                         lblRowsProcessedValue.Text = _rowsProcessed.ToString();
                     }
@@ -1347,6 +2106,623 @@ namespace Search_for_Users
                         await infoWriter.WriteLineAsync(
                             $"[SUCCESS] {DateTime.Now:u} - Removed user {memberIdValue} from group {groupIdValue} from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
                         // Count only successful removals toward rows processed (excludes header).
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and searches for users in OTDS by calling POST /otdsws/rest/users/search.
+        /// The CSV should contain columns for partitionName and state. Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> SearchOtdsUsersFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var searchUri = new Uri("http://dbscs.dcxeim.local:8080/otdsws/rest/users/search");
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                var partitionName = GetColumn(values, "partitionName");
+                var state = GetColumn(values, "state");
+
+                if (string.IsNullOrWhiteSpace(partitionName))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'partitionName' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(state))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'state' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    var bodyObject = new
+                    {
+                        partitionName,
+                        state
+                    };
+
+                    using var requestContent = new StringContent(
+                        JsonSerializer.Serialize(bodyObject),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    using var response = await client.PostAsync(searchUri, requestContent, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Searched OTDS users (partitionName='{partitionName}', state='{state}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and searches for users by ID by calling GET /otdsws/rest/users/{user_id}.
+        /// The CSV should contain a column for user_id. Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> SearchUserByIdFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var baseUri = "http://dbscs.dcxeim.local:8080/otdsws/rest/users";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                var userId = GetColumn(values, "user_id");
+
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'user_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the GET URL: /otdsws/rest/users/{user_id}
+                    var getUserUri = new Uri($"{baseUri}/{Uri.EscapeDataString(userId)}");
+
+                    using var response = await client.GetAsync(getUserUri, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Found OTDS user (user_id='{userId}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and creates users in OTDS by calling POST /otdsws/rest/users.
+        /// The CSV should contain columns for userPartitionID, id, name, location, cn, sn, givenName, displayName, mail, userPassword.
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> CreateOtdsUsersFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var createUserUri = new Uri("http://dbscs.dcxeim.local:8080/otdsws/rest/users");
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                // Get required parameters from CSV columns.
+                var userPartitionID = GetColumn(values, "userPartitionID");
+                var id = GetColumn(values, "id");
+                var name = GetColumn(values, "name");
+                var location = GetColumn(values, "location");
+                var cn = GetColumn(values, "cn");
+                var sn = GetColumn(values, "sn");
+                var givenName = GetColumn(values, "givenName");
+                var displayName = GetColumn(values, "displayName");
+                var mail = GetColumn(values, "mail");
+                var userPassword = GetColumn(values, "userPassword");
+
+                // Validate required fields.
+                if (string.IsNullOrWhiteSpace(userPartitionID))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'userPartitionID' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(cn))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'cn' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(sn))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'sn' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the values array for the user attributes.
+                    var userValues = new List<object>
+                    {
+                        new { name = "cn", values = new[] { cn } },
+                        new { name = "sn", values = new[] { sn } }
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(givenName))
+                    {
+                        userValues.Add(new { name = "givenName", values = new[] { givenName } });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(displayName))
+                    {
+                        userValues.Add(new { name = "displayName", values = new[] { displayName } });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(mail))
+                    {
+                        userValues.Add(new { name = "mail", values = new[] { mail } });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(userPassword))
+                    {
+                        userValues.Add(new { name = "userPassword", values = new[] { userPassword } });
+                    }
+
+                    // Build the request body.
+                    var bodyObject = new Dictionary<string, object>
+                    {
+                        ["userPartitionID"] = userPartitionID,
+                        ["id"] = id,
+                        ["values"] = userValues
+                    };
+
+                    // Add optional fields if provided.
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        bodyObject["name"] = name;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(location))
+                    {
+                        bodyObject["location"] = location;
+                    }
+
+                    using var requestContent = new StringContent(
+                        JsonSerializer.Serialize(bodyObject),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    using var response = await client.PostAsync(createUserUri, requestContent, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Created OTDS user (id='{id}', partition='{userPartitionID}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and updates users in OTDS by calling PUT /otdsws/rest/users/{user_id}.
+        /// The CSV should contain a user_id column plus any columns for fields to update
+        /// (e.g., displayName, mail, givenName, sn, etc.).
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> UpdateOtdsUserFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            // Find the index of the user_id column.
+            var userIdIndex = Array.FindIndex(headers, h => h.Trim().Equals("user_id", StringComparison.OrdinalIgnoreCase));
+
+            var baseUri = "http://dbscs.dcxeim.local:8080/otdsws/rest/users";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                var userId = GetColumn(values, "user_id");
+
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'user_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the values array from all columns except user_id.
+                    // Known field names that OTDS supports in the values array.
+                    var knownFields = new[] { "displayName", "mail", "givenName", "sn", "cn", "userPassword" };
+                    var userValues = new List<object>();
+
+                    foreach (var fieldName in knownFields)
+                    {
+                        var fieldValue = GetColumn(values, fieldName);
+                        if (!string.IsNullOrWhiteSpace(fieldValue))
+                        {
+                            userValues.Add(new { name = fieldName, values = new[] { fieldValue } });
+                        }
+                    }
+
+                    if (userValues.Count == 0)
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: No fields to update. Provide at least one of: {string.Join(", ", knownFields)}");
+                        errorWritten = true;
+                        continue;
+                    }
+
+                    // Build the request body.
+                    var bodyObject = new Dictionary<string, object>
+                    {
+                        ["values"] = userValues
+                    };
+
+                    // Build the PUT URL: /otdsws/rest/users/{user_id}
+                    var updateUserUri = new Uri($"{baseUri}/{Uri.EscapeDataString(userId)}");
+
+                    using var requestContent = new StringContent(
+                        JsonSerializer.Serialize(bodyObject),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    using var response = await client.PutAsync(updateUserUri, requestContent, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        // Build a summary of updated fields.
+                        var updatedFields = string.Join(", ", knownFields.Where(f => !string.IsNullOrWhiteSpace(GetColumn(values, f))));
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Updated OTDS user (user_id='{userId}', fields: {updatedFields}) from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                        _rowsProcessed++;
+                        lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                    }
+                    else
+                    {
+                        await errorWriter.WriteLineAsync(
+                            $"[ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                        errorWritten = true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[EXCEPTION] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: {ex}");
+                    errorWritten = true;
+                }
+            }
+
+            return errorWritten;
+        }
+
+        /// <summary>
+        /// Reads CSV rows and deletes users in OTDS by calling DELETE /otdsws/rest/users/{user_id}.
+        /// The CSV should contain a user_id column identifying the user to delete.
+        /// Each row will result in a separate API call.
+        /// Returns true if any errors were written to the error log.
+        /// </summary>
+        private async Task<bool> DeleteOtdsUserFromCsvAsync(
+            HttpClient client,
+            string[] lines,
+            string csvPath,
+            int startRow,
+            StreamWriter infoWriter,
+            StreamWriter errorWriter,
+            CancellationToken cancellationToken)
+        {
+            var errorWritten = false;
+
+            // Use the first line as headers so we can map column names to values.
+            var headers = lines[0].Split(',');
+
+            // Local helper: return the value for a header name, or empty string if missing.
+            string GetColumn(string[] rowValues, string columnName)
+            {
+                var index = Array.FindIndex(headers, h => h.Trim().Equals(columnName, StringComparison.OrdinalIgnoreCase));
+                return index >= 0 && index < rowValues.Length ? rowValues[index].Trim() : string.Empty;
+            }
+
+            var baseUri = "http://dbscs.dcxeim.local:8080/otdsws/rest/users";
+
+            // Iterate data rows; startRow is 1-based for the first data row after header.
+            for (var i = 1; i < lines.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dataRowNumber = i;
+                if (dataRowNumber < startRow)
+                {
+                    continue;
+                }
+
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var values = line.Split(',');
+
+                var userId = GetColumn(values, "user_id");
+
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'user_id' value.");
+                    errorWritten = true;
+                    continue;
+                }
+
+                try
+                {
+                    // Build the DELETE URL: /otdsws/rest/users/{user_id}
+                    var deleteUserUri = new Uri($"{baseUri}/{Uri.EscapeDataString(userId)}");
+
+                    using var response = await client.DeleteAsync(deleteUserUri, cancellationToken);
+                    var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var formatted = FormatJsonForLog(responseBody);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await infoWriter.WriteLineAsync(
+                            $"[SUCCESS] {DateTime.Now:u} - Deleted OTDS user (user_id='{userId}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
                         _rowsProcessed++;
                         lblRowsProcessedValue.Text = _rowsProcessed.ToString();
                     }

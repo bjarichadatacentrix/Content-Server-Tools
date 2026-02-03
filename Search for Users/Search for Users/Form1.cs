@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -40,14 +41,11 @@ namespace Search_for_Users
             labelMessage.Text = string.Empty;
 
             // Read values entered by the user.
-                   // var url = txtUrl.Text?.Trim() ?? string.Empty;
-                   // var username = txtUsername.Text?.Trim() ?? string.Empty;
-                   // var password = txtPassword.Text ?? string.Empty;
+                    var url = txtUrl.Text?.Trim() ?? string.Empty;
+                    var username = txtUsername.Text?.Trim() ?? string.Empty;
+                    var password = txtPassword.Text ?? string.Empty;
 
-            // For hardcoding
-            var url = "http://dbscs.dcxeim.local/otcs/cs.exe/api/v1/auth";
-            var username = "otadmin@otds.admin";
-            var password = "P@$$w0rd!";
+
 
 
             // Require all three fields to be filled in before trying to log in.
@@ -89,9 +87,9 @@ namespace Search_for_Users
         }
 
         /// <summary>
-        /// Tries to log in to an OpenText Content Server using the REST
-        /// authentication endpoint `/api/v1/auth`. It POSTs the username
-        /// and password and returns true only when a ticket is returned.
+        /// Tries to log in to OpenText Directory Services (OTDS) using the REST
+        /// authentication credentials endpoint `/otdsws/rest/authentication/credentials`.
+        /// It POSTs a JSON body with userName/password and returns true only when a ticket is returned.
         /// The ticket value is stored in the private field `_authTicket`.
         /// </summary>
         private async Task<bool> TryLoginAsync(string url, string username, string password)
@@ -104,27 +102,18 @@ namespace Search_for_Users
                     return false;
                 }
 
-                // Build the full authentication URL for OpenText Content Server.
-                // If the user already typed the full /api/v1/auth URL we use it as-is.
-                // Otherwise we assume they entered the server URL and append the
-                // standard OTCS path `/otcs/cs.exe/api/v1/auth`.
+                // Build the full OTDS authentication URL.
+                // If the user already typed the full /otdsws/rest/authentication/credentials URL we use it as-is.
+                // Otherwise we assume they entered the OTDS base URL (including port) and append the standard path.
                 Uri authUri;
-                if (baseUri.AbsolutePath.Contains("/api/v1/auth", StringComparison.OrdinalIgnoreCase))
+                if (baseUri.AbsolutePath.Contains("/otdsws/rest/authentication/credentials", StringComparison.OrdinalIgnoreCase))
                 {
                     authUri = baseUri;
                 }
                 else
                 {
                     var builder = new UriBuilder(baseUri);
-
-                    // Ensure the path ends with /otcs/cs.exe before we add /api/v1/auth.
-                    var path = builder.Path.TrimEnd('/');
-                    if (!path.EndsWith("/otcs/cs.exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        path += "/otcs/cs.exe";
-                    }
-
-                    builder.Path = path + "/api/v1/auth";
+                    builder.Path = "/otdsws/rest/authentication/credentials";
                     authUri = builder.Uri;
                 }
 
@@ -134,15 +123,20 @@ namespace Search_for_Users
                     Timeout = TimeSpan.FromSeconds(10)
                 };
 
-                // Prepare the POST body expected by OTCS REST:
-                // username=<user>&password=<password>
-                using var content = new FormUrlEncodedContent(new[]
+                // Prepare the JSON POST body expected by OTDS REST:
+                // { "userName": "<user>", "password": "<password>" }
+                var payload = new
                 {
-                    new KeyValuePair<string, string>("username", username),
-                    new KeyValuePair<string, string>("password", password)
-                });
+                    userName = username,
+                    password
+                };
 
-                // Send the POST request to /api/v1/auth.
+                using var content = new StringContent(
+                    JsonSerializer.Serialize(payload),
+                    Encoding.UTF8,
+                    "application/json");
+
+                // Send the POST request to OTDS credentials endpoint.
                 using var response = await client.PostAsync(authUri, content);
 
                 // If the HTTP status is not successful, the login failed.
