@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -41,6 +41,8 @@ namespace Search_for_Users
             labelMessage.Text = string.Empty;
 
             // Read values entered by the user.
+            //If the left side is null → use string.Empty
+            //If it’s not null → use the trimmed value
                     var url = txtUrl.Text?.Trim() ?? string.Empty;
                     var username = txtUsername.Text?.Trim() ?? string.Empty;
                     var password = txtPassword.Text ?? string.Empty;
