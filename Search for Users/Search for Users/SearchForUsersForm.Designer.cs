@@ -163,7 +163,11 @@ namespace Search_for_Users
             // 
             // lblErrorFilesValue
             // 
-            lblErrorFilesValue.AutoSize = true;
+            
+            
+            
+            
+          lblErrorFilesValue.AutoSize = true;
             lblErrorFilesValue.Location = new Point(700, 235);
             lblErrorFilesValue.Name = "lblErrorFilesValue";
             lblErrorFilesValue.Size = new Size(13, 15);
