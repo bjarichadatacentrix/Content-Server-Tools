@@ -43,9 +43,15 @@ namespace Search_for_Users
             // Read values entered by the user.
             //If the left side is null → use string.Empty
             //If it’s not null → use the trimmed value
-                    var url = txtUrl.Text?.Trim() ?? string.Empty;
-                    var username = txtUsername.Text?.Trim() ?? string.Empty;
-                    var password = txtPassword.Text ?? string.Empty;
+
+
+            //var url = txtUrl.Text?.Trim() ?? string.Empty;
+            //var username = txtUsername.Text?.Trim() ?? string.Empty;
+            //var password = txtPassword.Text ?? string.Empty;
+
+            var url = "http://dbscs.dcxeim.local:8080/otdsws/rest/authentication/credentials";
+            var username = "otadmin@otds.admin";
+            var password = "P@$$w0rd!";
 
 
 
@@ -174,6 +180,11 @@ namespace Search_for_Users
                 // Any exception (network error, timeout, etc.) is treated as an unsuccessful login.
                 return false;
             }
+        }
+
+        private void txtUsername_TextChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }

@@ -102,6 +102,7 @@ namespace Search_for_Users
 
         /// <summary>
         /// When a Users radio button is selected, uncheck all Groups and Users^Groups radio buttons.
+        /// Also uncheck "All" if a non-Search for Users option is selected.
         /// </summary>
         private void UsersRadioButton_CheckedChanged(object? sender, EventArgs e)
         {
@@ -112,8 +113,37 @@ namespace Search_for_Users
                 radioCreateSubGroups.Checked = false;
                 radioUpdateGroups.Checked = false;
                 radioDeleteGroup.Checked = false;
+                chkSearchAllGroups.Checked = false;
                 radioAddUserToGroup.Checked = false;
                 radioRemoveUserFromGroup.Checked = false;
+                
+                // "All" users checkbox only applies to "Search for Users"
+                if (radio != radioSearchForUsers)
+                {
+                    chkSearchAllUsers.Checked = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// When the "All" checkbox is toggled, auto-select "Search for Users" if checked.
+        /// </summary>
+        private void chkSearchAllUsers_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (chkSearchAllUsers.Checked)
+            {
+                radioSearchForUsers.Checked = true;
+            }
+        }
+
+        /// <summary>
+        /// When the "All" groups checkbox is toggled, auto-select "Search Groups" if checked.
+        /// </summary>
+        private void chkSearchAllGroups_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (chkSearchAllGroups.Checked)
+            {
+                radioSearchGroups.Checked = true;
             }
         }
 
@@ -129,12 +159,14 @@ namespace Search_for_Users
                 radioCreateUser.Checked = false;
                 radioUpdateUser.Checked = false;
                 radioDeleteUser.Checked = false;
+                chkSearchAllUsers.Checked = false;
                 // Uncheck Groups
                 radioSearchGroups.Checked = false;
                 radioCreateGroups.Checked = false;
                 radioCreateSubGroups.Checked = false;
                 radioUpdateGroups.Checked = false;
                 radioDeleteGroup.Checked = false;
+                chkSearchAllGroups.Checked = false;
                 // Uncheck Users Groups
                 radioAddUserToGroup.Checked = false;
                 radioRemoveUserFromGroup.Checked = false;
@@ -152,8 +184,15 @@ namespace Search_for_Users
                 radioCreateUser.Checked = false;
                 radioUpdateUser.Checked = false;
                 radioDeleteUser.Checked = false;
+                chkSearchAllUsers.Checked = false;
                 radioAddUserToGroup.Checked = false;
                 radioRemoveUserFromGroup.Checked = false;
+
+                // "All" groups checkbox only applies to "Search Groups"
+                if (radio != radioSearchGroups)
+                {
+                    chkSearchAllGroups.Checked = false;
+                }
             }
         }
 
@@ -169,12 +208,14 @@ namespace Search_for_Users
                 radioCreateUser.Checked = false;
                 radioUpdateUser.Checked = false;
                 radioDeleteUser.Checked = false;
+                chkSearchAllUsers.Checked = false;
                 // Uncheck Groups
                 radioSearchGroups.Checked = false;
                 radioCreateGroups.Checked = false;
                 radioCreateSubGroups.Checked = false;
                 radioUpdateGroups.Checked = false;
                 radioDeleteGroup.Checked = false;
+                chkSearchAllGroups.Checked = false;
             }
         }
 
@@ -211,8 +252,12 @@ namespace Search_for_Users
                 return;
             }
 
+            // Determine whether "All" was checked (relevant for Search for Users or Search Groups).
+            var searchAll = (radioSearchForUsers.Checked && chkSearchAllUsers.Checked)
+                         || (radioSearchGroups.Checked && chkSearchAllGroups.Checked);
+
             // Open the Search for Users screen and hide this one.
-            var searchForm = new SearchForUsersForm(this, _loginForm, selectedAction.Value);
+            var searchForm = new SearchForUsersForm(this, _loginForm, selectedAction.Value, searchAll);
             searchForm.Show();
             this.Hide();
         }

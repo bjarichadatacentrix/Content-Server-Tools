@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -41,6 +43,9 @@ namespace Search_for_Users
         // Selected action that determines which API endpoint/method is used.
         private readonly ContentServerAction _selectedAction;
 
+        // When true, "Search for Users" will fetch ALL users without requiring a CSV file.
+        private readonly bool _searchAllUsers;
+
         // Path to the last created info log file (for "View File" button).
         private string? _lastInfoLogPath;
 
@@ -49,16 +54,16 @@ namespace Search_for_Users
         /// previous (action selection) and login forms so that
         /// navigation and API calls work correctly.
         /// </summary>
-        public SearchForUsersForm(ActionSelectionForm actionSelectionForm, Form1 loginForm, ContentServerAction selectedAction)
+        public SearchForUsersForm(ActionSelectionForm actionSelectionForm, Form1 loginForm, ContentServerAction selectedAction, bool searchAllUsers = false)
         {
             _actionSelectionForm = actionSelectionForm ?? throw new ArgumentNullException(nameof(actionSelectionForm));
             _loginForm = loginForm ?? throw new ArgumentNullException(nameof(loginForm));
             _selectedAction = selectedAction;
+            _searchAllUsers = searchAllUsers;
 
             InitializeComponent();
 
             // Update the window title so the user can see which mode they are in.
-            // This keeps the UI the same while making the behavior explicit.
             var actionName = selectedAction switch
             {
                 ContentServerAction.SearchUserById => "Search User by ID",
@@ -75,13 +80,195 @@ namespace Search_for_Users
                 _ => "Search for Users"
             };
 
-            this.Text = actionName;
+            // Append "(All)" to the title when searching all.
+            if (_searchAllUsers)
+            {
+                actionName += " (All)";
+            }
 
-            // Display the selected action in the readonly text field.
+            this.Text = actionName;
             txtSelectedAction.Text = actionName;
 
-            // Initialize the Error Log color based on the initial error count (should be 0).
+            // If searching all, disable the input file button since no CSV is needed.
+            if (_searchAllUsers)
+            {
+                btnChooseInputFile.Enabled = false;
+                txtInputFile.Text = _selectedAction == ContentServerAction.SearchGroups
+                    ? "No CSV required \u2014 fetching all groups"
+                    : "No CSV required \u2014 fetching all users";
+            }
+
+            ConfigurePartitionDropdown();
             UpdateErrorLogColor();
+        }
+
+        /// <summary>
+        /// Shows and initializes the partition selector only for "Search for Users".
+        /// </summary>
+        private void ConfigurePartitionDropdown()
+        {
+            var isSearchUsersAction = _selectedAction == ContentServerAction.SearchForUsers;
+
+            lblPartition.Visible = isSearchUsersAction;
+            lstPartitions.Visible = isSearchUsersAction;
+
+            if (!isSearchUsersAction)
+            {
+                return;
+            }
+
+            lstPartitions.Items.Clear();
+            lstPartitions.Items.Add("All");
+            lstPartitions.SelectedIndex = 0;
+
+            _ = LoadPartitionsAsync();
+        }
+
+        /// <summary>
+        /// Loads partitions from OTDS and populates the partition selector.
+        /// </summary>
+        private async Task LoadPartitionsAsync()
+        {
+            if (_selectedAction != ContentServerAction.SearchForUsers)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_loginForm.AuthTicket))
+            {
+                return;
+            }
+
+            lstPartitions.Enabled = false;
+
+            try
+            {
+                using var client = new HttpClient
+                {
+                    Timeout = TimeSpan.FromSeconds(30)
+                };
+
+                client.DefaultRequestHeaders.Add("OTDSTicket", _loginForm.AuthTicket);
+                client.DefaultRequestHeaders.Add("OTCSTicket", _loginForm.AuthTicket);
+
+                var requestUri = new Uri("http://dbscs.dcxeim.local:8080/otdsws/rest/partitions");
+                using var response = await client.GetAsync(requestUri);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Keep "All" as the only option if partitions could not be fetched.
+                    return;
+                }
+
+                var partitions = ExtractPartitionNames(responseBody);
+                foreach (var partition in partitions)
+                {
+                    if (!lstPartitions.Items.Contains(partition))
+                    {
+                        lstPartitions.Items.Add(partition);
+                    }
+                }
+            }
+            catch
+            {
+                // Non-blocking: users can still continue with "All".
+            }
+            finally
+            {
+                if (lstPartitions.Items.Count == 0)
+                {
+                    lstPartitions.Items.Add("All");
+                }
+
+                if (lstPartitions.SelectedIndex < 0 && lstPartitions.Items.Count > 0)
+                {
+                    lstPartitions.SelectedIndex = 0;
+                }
+
+                lstPartitions.Enabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Extracts partition names from GET /otdsws/rest/partitions response.
+        /// </summary>
+        private static List<string> ExtractPartitionNames(string json)
+        {
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                using var document = JsonDocument.Parse(json);
+                if (!document.RootElement.TryGetProperty("_userPartitions", out var partitionsElement) ||
+                    partitionsElement.ValueKind != JsonValueKind.Array)
+                {
+                    return result;
+                }
+
+                foreach (var partitionElement in partitionsElement.EnumerateArray())
+                {
+                    string? partitionName = null;
+
+                    if (partitionElement.TryGetProperty("id", out var idElement) &&
+                        idElement.ValueKind == JsonValueKind.String)
+                    {
+                        partitionName = idElement.GetString();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(partitionName) &&
+                        partitionElement.TryGetProperty("name", out var nameElement) &&
+                        nameElement.ValueKind == JsonValueKind.String)
+                    {
+                        partitionName = nameElement.GetString();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(partitionName) && seen.Add(partitionName))
+                    {
+                        result.Add(partitionName);
+                    }
+                }
+
+                result.Sort(StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                // Return whatever was parsed so far.
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Gets the current partition filter encoded as a single string.
+        /// Empty string means "all partitions".
+        /// </summary>
+        private string GetSelectedPartitionFilter()
+        {
+            if (_selectedAction != ContentServerAction.SearchForUsers)
+            {
+                return string.Empty;
+            }
+
+            if (lstPartitions.SelectedItems == null || lstPartitions.SelectedItems.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var selectedNames = lstPartitions.SelectedItems
+                .Cast<object>()
+                .Select(item => item?.ToString()?.Trim())
+                .Where(name => !string.IsNullOrEmpty(name))
+                .ToList();
+
+            // If "All" is selected, treat it as no filter regardless of other selections.
+            if (selectedNames.Any(name => string.Equals(name, "All", StringComparison.OrdinalIgnoreCase)))
+            {
+                return string.Empty;
+            }
+
+            return string.Join("|", selectedNames);
         }
 
         /// <summary>
@@ -176,6 +363,43 @@ namespace Search_for_Users
         }
 
         /// <summary>
+        /// Opens the report form with filtering enabled for editing/filtering data.
+        /// </summary>
+        private void btnEditData_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_lastInfoLogPath) || !File.Exists(_lastInfoLogPath))
+            {
+                MessageBox.Show(
+                    "No log file has been created yet. Please run a search first.",
+                    "Edit Data",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            // Build the report form title based on the selected action.
+            var actionName = _selectedAction switch
+            {
+                ContentServerAction.SearchUserById => "Search User by ID",
+                ContentServerAction.CreateUser => "Create User",
+                ContentServerAction.UpdateUser => "Update User",
+                ContentServerAction.DeleteUser => "Delete User",
+                ContentServerAction.SearchGroups => "Search Groups",
+                ContentServerAction.CreateGroups => "Create Groups",
+                ContentServerAction.CreateSubGroups => "Create SubGroups",
+                ContentServerAction.UpdateGroups => "Update Groups",
+                ContentServerAction.DeleteGroup => "Delete Group",
+                ContentServerAction.AddUserToGroup => "Add User to Group",
+                ContentServerAction.RemoveUserFromGroup => "Remove Users from Group",
+                _ => "Search for Users"
+            };
+
+            // Open report form with filtering enabled
+            var reportForm = new ReportForm(_lastInfoLogPath, $"{actionName} - Edit Data", _selectedAction, enableFiltering: true);
+            reportForm.Show();
+        }
+
+        /// <summary>
         /// Allows the user to choose one or more CSV input files
         /// that will drive the search against Content Server.
         /// </summary>
@@ -230,7 +454,7 @@ namespace Search_for_Users
                 return;
             }
 
-            if (_inputFiles.Count == 0)
+            if (!_searchAllUsers && _inputFiles.Count == 0)
             {
                 MessageBox.Show(
                     "Please choose at least one CSV input file.",
@@ -265,17 +489,18 @@ namespace Search_for_Users
 
             _processingCancellationSource = new CancellationTokenSource();
             var token = _processingCancellationSource.Token;
+            var selectedPartitionFilter = GetSelectedPartitionFilter();
 
             try
             {
-                await ProcessFilesAsync(startRow, token);
+                await ProcessFilesAsync(startRow, token, selectedPartitionFilter);
                 lblLogStatus.Text = token.IsCancellationRequested ? "Stopped" : "Completed";
             }
             finally
             {
                 // Restore UI regardless of success, error, or cancellation.
                 btnStart.Enabled = true;
-                btnChooseInputFile.Enabled = true;
+                btnChooseInputFile.Enabled = !_searchAllUsers;
                 btnBrowseLogLocation.Enabled = true;
                 btnStop.Enabled = false;
             }
@@ -321,8 +546,21 @@ namespace Search_for_Users
         /// Content Server action. Results are appended to the info log; an error
         /// log is only kept if at least one error or exception is written to it.
         /// </summary>
-        private async Task ProcessFilesAsync(int startRow, CancellationToken cancellationToken)
+        private async Task ProcessFilesAsync(int startRow, CancellationToken cancellationToken, string selectedPartition)
         {
+            // When "Search All" mode is active, there is no CSV file to process.
+            if (_searchAllUsers && _selectedAction == ContentServerAction.SearchForUsers)
+            {
+                await ProcessSearchAllUsersAsync(cancellationToken, selectedPartition);
+                return;
+            }
+
+            if (_searchAllUsers && _selectedAction == ContentServerAction.SearchGroups)
+            {
+                await ProcessSearchAllGroupsAsync(cancellationToken);
+                return;
+            }
+
             foreach (var csvPath in _inputFiles)
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -356,6 +594,7 @@ namespace Search_for_Users
                         infoWriter,
                         errorWriter,
                         startRow,
+                        selectedPartition,
                         cancellationToken);
 
                     _processedFiles++;
@@ -397,6 +636,279 @@ namespace Search_for_Users
         }
 
         /// <summary>
+        /// Fetches all users from OTDS via GET /otdsws/rest/users (no CSV required)
+        /// and writes the response to a log file.
+        /// </summary>
+        private async Task ProcessSearchAllUsersAsync(CancellationToken cancellationToken, string partitionFilter)
+        {
+            var applyPartitionFilter = !string.IsNullOrEmpty(partitionFilter);
+            var partitionDescription = applyPartitionFilter
+                ? partitionFilter.Replace("|", ", ")
+                : string.Empty;
+
+            txtCurrentFile.Text = applyPartitionFilter
+                ? $"Fetching users for partition(s) '{partitionDescription}'..."
+                : "Fetching all users...";
+
+            var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmm");
+            var infoLogPath = Path.Combine(_logFolder!, $"all_users_{timestamp}.log");
+            var errorLogPath = Path.Combine(_logFolder!, $"all_users_{timestamp}_error.log");
+
+            _lastInfoLogPath = infoLogPath;
+
+            using var infoWriter = new StreamWriter(infoLogPath, append: true, Encoding.UTF8);
+            using var errorWriter = new StreamWriter(errorLogPath, append: true, Encoding.UTF8);
+
+            var errorWritten = false;
+
+            try
+            {
+                await infoWriter.WriteLineAsync(
+                    applyPartitionFilter
+                        ? $"[START] {DateTime.Now:u} - Beginning 'SearchForUsers (All)' — fetching users for partition(s) '{partitionDescription}'."
+                        : $"[START] {DateTime.Now:u} - Beginning 'SearchForUsers (All)' — fetching all users from OTDS.");
+
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+                client.DefaultRequestHeaders.Add("OTDSTicket", _loginForm.AuthTicket);
+                client.DefaultRequestHeaders.Add("OTCSTicket", _loginForm.AuthTicket);
+
+                var requestUri = new Uri("http://dbscs.dcxeim.local:8080/otdsws/rest/users");
+
+                using var response = await client.GetAsync(requestUri, cancellationToken);
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                var payloadForLog = applyPartitionFilter
+                    ? FilterUsersResponseByPartition(responseBody, partitionFilter)
+                    : responseBody;
+
+                var formatted = FormatJsonForLog(payloadForLog);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    await infoWriter.WriteLineAsync(
+                        applyPartitionFilter
+                            ? $"[SUCCESS] {DateTime.Now:u} - Retrieved users for partition(s) '{partitionDescription}':{Environment.NewLine}{formatted}"
+                            : $"[SUCCESS] {DateTime.Now:u} - Retrieved all users:{Environment.NewLine}{formatted}");
+                    _rowsProcessed++;
+                    lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                }
+                else
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ERROR] {DateTime.Now:u} - HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                    errorWritten = true;
+                }
+
+                _processedFiles = 1;
+                lblProcessedFilesValue.Text = "1";
+                _totalFiles = 1;
+                lblTotalFilesValue.Text = "1";
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancelled — keep whatever logs we have.
+            }
+            catch (Exception ex)
+            {
+                await errorWriter.WriteLineAsync($"[GENERAL ERROR] {DateTime.Now:u} - {ex}");
+                errorWritten = true;
+            }
+
+            await infoWriter.FlushAsync();
+
+            if (errorWritten)
+            {
+                _errorFiles++;
+                lblErrorFilesValue.Text = _errorFiles.ToString();
+                UpdateErrorLogColor();
+                await errorWriter.FlushAsync();
+            }
+            else
+            {
+                errorWriter.Close();
+                if (File.Exists(errorLogPath))
+                {
+                    File.Delete(errorLogPath);
+                }
+            }
+
+            txtCurrentFile.Text = "Done";
+        }
+
+        /// <summary>
+        /// Filters a /users response payload to include only users from the selected partition(s).
+        /// The <paramref name="partitionFilter"/> argument is a '|' separated list; empty means no filter.
+        /// </summary>
+        private static string FilterUsersResponseByPartition(string responseBody, string partitionFilter)
+        {
+            if (string.IsNullOrWhiteSpace(partitionFilter))
+            {
+                return responseBody;
+            }
+
+            try
+            {
+                var filters = partitionFilter
+                    .Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(p => p.Trim())
+                    .Where(p => p.Length > 0)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (filters.Count == 0)
+                {
+                    return responseBody;
+                }
+
+                using var document = JsonDocument.Parse(responseBody);
+                var root = document.RootElement;
+
+                var usersPropertyName = string.Empty;
+                JsonElement usersElement;
+
+                if (root.TryGetProperty("_users", out usersElement) &&
+                    usersElement.ValueKind == JsonValueKind.Array)
+                {
+                    usersPropertyName = "_users";
+                }
+                else if (root.TryGetProperty("users", out usersElement) &&
+                         usersElement.ValueKind == JsonValueKind.Array)
+                {
+                    usersPropertyName = "users";
+                }
+                else
+                {
+                    return responseBody;
+                }
+
+                using var stream = new MemoryStream();
+                using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+                {
+                    writer.WriteStartObject();
+
+                    foreach (var property in root.EnumerateObject())
+                    {
+                        if (property.NameEquals(usersPropertyName))
+                        {
+                            writer.WritePropertyName(usersPropertyName);
+                            writer.WriteStartArray();
+
+                            foreach (var user in usersElement.EnumerateArray())
+                            {
+                                if (user.TryGetProperty("userPartitionID", out var partitionElement) &&
+                                    partitionElement.ValueKind == JsonValueKind.String)
+                                {
+                                    var partition = partitionElement.GetString();
+                                    if (!string.IsNullOrEmpty(partition) &&
+                                        filters.Contains(partition))
+                                    {
+                                        user.WriteTo(writer);
+                                    }
+                                }
+                            }
+
+                            writer.WriteEndArray();
+                        }
+                        else
+                        {
+                            property.WriteTo(writer);
+                        }
+                    }
+
+                    writer.WriteEndObject();
+                }
+
+                return Encoding.UTF8.GetString(stream.ToArray());
+            }
+            catch
+            {
+                return responseBody;
+            }
+        }
+
+        /// <summary>
+        /// Fetches all groups from OTDS via GET /otdsws/rest/groups (no CSV required)
+        /// and writes the response to a log file.
+        /// </summary>
+        private async Task ProcessSearchAllGroupsAsync(CancellationToken cancellationToken)
+        {
+            txtCurrentFile.Text = "Fetching all groups...";
+
+            var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmm");
+            var infoLogPath = Path.Combine(_logFolder!, $"all_groups_{timestamp}.log");
+            var errorLogPath = Path.Combine(_logFolder!, $"all_groups_{timestamp}_error.log");
+
+            _lastInfoLogPath = infoLogPath;
+
+            using var infoWriter = new StreamWriter(infoLogPath, append: true, Encoding.UTF8);
+            using var errorWriter = new StreamWriter(errorLogPath, append: true, Encoding.UTF8);
+
+            var errorWritten = false;
+
+            try
+            {
+                await infoWriter.WriteLineAsync(
+                    $"[START] {DateTime.Now:u} - Beginning 'SearchGroups (All)' \u2014 fetching all groups from OTDS.");
+
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+                client.DefaultRequestHeaders.Add("OTDSTicket", _loginForm.AuthTicket);
+                client.DefaultRequestHeaders.Add("OTCSTicket", _loginForm.AuthTicket);
+
+                var requestUri = new Uri("http://dbscs.dcxeim.local:8080/otdsws/rest/groups");
+
+                using var response = await client.GetAsync(requestUri, cancellationToken);
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                var formatted = FormatJsonForLog(responseBody);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    await infoWriter.WriteLineAsync(
+                        $"[SUCCESS] {DateTime.Now:u} - Retrieved all groups:{Environment.NewLine}{formatted}");
+                    _rowsProcessed++;
+                    lblRowsProcessedValue.Text = _rowsProcessed.ToString();
+                }
+                else
+                {
+                    await errorWriter.WriteLineAsync(
+                        $"[ERROR] {DateTime.Now:u} - HTTP {(int)response.StatusCode} {response.ReasonPhrase}{Environment.NewLine}{formatted}");
+                    errorWritten = true;
+                }
+
+                _processedFiles = 1;
+                lblProcessedFilesValue.Text = "1";
+                _totalFiles = 1;
+                lblTotalFilesValue.Text = "1";
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancelled — keep whatever logs we have.
+            }
+            catch (Exception ex)
+            {
+                await errorWriter.WriteLineAsync($"[GENERAL ERROR] {DateTime.Now:u} - {ex}");
+                errorWritten = true;
+            }
+
+            await infoWriter.FlushAsync();
+
+            if (errorWritten)
+            {
+                _errorFiles++;
+                lblErrorFilesValue.Text = _errorFiles.ToString();
+                UpdateErrorLogColor();
+                await errorWriter.FlushAsync();
+            }
+            else
+            {
+                errorWriter.Close();
+                if (File.Exists(errorLogPath))
+                {
+                    File.Delete(errorLogPath);
+                }
+            }
+
+            txtCurrentFile.Text = "Done";
+        }
+
+        /// <summary>
         /// Executes the currently selected Content Server action for a single
         /// CSV file and writes formatted JSON responses to the log files.
         /// The returned boolean indicates whether any errors were written to
@@ -407,6 +919,7 @@ namespace Search_for_Users
             StreamWriter infoWriter,
             StreamWriter errorWriter,
             int startRow,
+            string partitionFilter,
             CancellationToken cancellationToken)
         {
             // Tracks whether anything was actually written to the error log.
@@ -449,7 +962,15 @@ namespace Search_for_Users
             {
                 // For the Search for Users action, call POST /otdsws/rest/users/search for each CSV data row.
                 // Parameters come from CSV columns (partitionName, state).
-                errorWritten = await SearchOtdsUsersFromCsvAsync(client, lines, csvPath, startRow, infoWriter, errorWriter, cancellationToken);
+                errorWritten = await SearchOtdsUsersFromCsvAsync(
+                    client,
+                    lines,
+                    csvPath,
+                    startRow,
+                    infoWriter,
+                    errorWriter,
+                    partitionFilter,
+                    cancellationToken);
             }
             else if (_selectedAction == ContentServerAction.SearchGroups)
             {
@@ -2375,9 +2896,17 @@ namespace Search_for_Users
             int startRow,
             StreamWriter infoWriter,
             StreamWriter errorWriter,
+            string partitionFilter,
             CancellationToken cancellationToken)
         {
             var errorWritten = false;
+
+            string? fallbackPartition = null;
+            if (!string.IsNullOrWhiteSpace(partitionFilter) &&
+                !partitionFilter.Contains('|'))
+            {
+                fallbackPartition = partitionFilter.Trim();
+            }
 
             // Use the first line as headers so we can map column names to values.
             var headers = lines[0].Split(',');
@@ -2413,10 +2942,21 @@ namespace Search_for_Users
                 var partitionName = GetColumn(values, "partitionName");
                 var state = GetColumn(values, "state");
 
-                if (string.IsNullOrWhiteSpace(partitionName))
+                // Determine which partition to use for this row.
+                var effectivePartitionName = partitionName;
+
+                // If CSV did not provide a partition, but a single partition was selected in the UI,
+                // fall back to that single selection.
+                if (string.IsNullOrWhiteSpace(effectivePartitionName) &&
+                    !string.IsNullOrWhiteSpace(fallbackPartition))
+                {
+                    effectivePartitionName = fallbackPartition;
+                }
+
+                if (string.IsNullOrWhiteSpace(effectivePartitionName))
                 {
                     await errorWriter.WriteLineAsync(
-                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'partitionName' value.");
+                        $"[ROW ERROR] {DateTime.Now:u} - File '{csvPath}', Row {dataRowNumber}: Missing or empty 'partitionName' value (CSV or dropdown).");
                     errorWritten = true;
                     continue;
                 }
@@ -2433,7 +2973,7 @@ namespace Search_for_Users
                 {
                     var bodyObject = new
                     {
-                        partitionName,
+                        partitionName = effectivePartitionName,
                         state
                     };
 
@@ -2444,12 +2984,13 @@ namespace Search_for_Users
 
                     using var response = await client.PostAsync(searchUri, requestContent, cancellationToken);
                     var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    var formatted = FormatJsonForLog(responseBody);
+                    var payloadForLog = FilterUsersResponseByPartition(responseBody, effectivePartitionName);
+                    var formatted = FormatJsonForLog(payloadForLog);
 
                     if (response.IsSuccessStatusCode)
                     {
                         await infoWriter.WriteLineAsync(
-                            $"[SUCCESS] {DateTime.Now:u} - Searched OTDS users (partitionName='{partitionName}', state='{state}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
+                            $"[SUCCESS] {DateTime.Now:u} - Searched OTDS users (partitionName='{effectivePartitionName}', state='{state}') from Row {dataRowNumber}:{Environment.NewLine}{formatted}");
                         _rowsProcessed++;
                         lblRowsProcessedValue.Text = _rowsProcessed.ToString();
                     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
@@ -16,6 +17,22 @@ namespace Search_for_Users
     {
         private readonly string _logFilePath;
         private readonly ContentServerAction _selectedAction;
+        private readonly bool _enableFiltering;
+        
+        // Filter controls for Search for Users
+        private Panel? _filterPanel;
+        private TextBox? _filterUserId;
+        private TextBox? _filterPartition;
+        private TextBox? _filterName;
+        private TextBox? _filterSurname;
+        private TextBox? _filterDisplayName;
+        private TextBox? _filterMail;
+        private TextBox? _filterCn;
+        private Button? _btnFilter;
+        private Button? _btnClearFilter;
+        
+        // Store original data for filtering
+        private List<UserRecord>? _allUsers;
 
         /// <summary>
         /// Creates the report form with the specified log file and title.
@@ -23,15 +40,275 @@ namespace Search_for_Users
         /// <param name="logFilePath">Path to the log file to parse.</param>
         /// <param name="title">Title to display in the form's title bar.</param>
         /// <param name="selectedAction">The action that generated the log file.</param>
-        public ReportForm(string logFilePath, string title, ContentServerAction selectedAction = ContentServerAction.SearchForUsers)
+        /// <param name="enableFiltering">Whether to enable filtering UI.</param>
+        public ReportForm(string logFilePath, string title, ContentServerAction selectedAction = ContentServerAction.SearchForUsers, bool enableFiltering = false)
         {
             _logFilePath = logFilePath ?? throw new ArgumentNullException(nameof(logFilePath));
             _selectedAction = selectedAction;
+            _enableFiltering = enableFiltering;
 
             InitializeComponent();
 
+            // Allow users to highlight one or more rows for targeted export/generation.
+            dataGridViewReport.MultiSelect = true;
+            dataGridViewReport.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+
             this.Text = title;
+            
+            // Set up the "Generate Input File" dropdown based on the action
+            SetupGenerateOptions();
+            
             LoadLogFile();
+            
+            // Make the grid editable for Search Users / Search Groups when opened via "Edit Data"
+            if (_enableFiltering)
+            {
+                MakeGridEditable();
+            }
+            
+            // Add filter UI if filtering is enabled for supported actions
+            if (_enableFiltering && _selectedAction == ContentServerAction.SearchForUsers)
+            {
+                AddFilterControls();
+            }
+        }
+
+        /// <summary>
+        /// Populates the "Generate Input File" dropdown based on the selected action.
+        /// Only relevant options are shown.
+        /// </summary>
+        private void SetupGenerateOptions()
+        {
+            cboGenerateOption.Items.Clear();
+            cboGenerateOption.Items.Add("Select Option");
+
+            if (_selectedAction == ContentServerAction.SearchForUsers)
+            {
+                cboGenerateOption.Items.Add("Update Users");
+            }
+            else if (_selectedAction == ContentServerAction.SearchGroups)
+            {
+                cboGenerateOption.Items.Add("Update Groups");
+            }
+
+            cboGenerateOption.SelectedIndex = 0;
+
+            // Hide the controls entirely if no generate options apply
+            var hasOptions = cboGenerateOption.Items.Count > 1;
+            cboGenerateOption.Visible = hasOptions;
+            btnGenerateInputFile.Visible = hasOptions;
+        }
+
+        /// <summary>
+        /// Makes the DataGridView editable for Search Users / Search Groups.
+        /// User ID (or Group ID) column stays read-only.
+        /// </summary>
+        private void MakeGridEditable()
+        {
+            dataGridViewReport.ReadOnly = false;
+
+            if (_selectedAction == ContentServerAction.SearchForUsers)
+            {
+                foreach (DataGridViewColumn col in dataGridViewReport.Columns)
+                {
+                    // User ID stays read-only; all other columns are editable
+                    col.ReadOnly = col.Name == "colUserId";
+                }
+            }
+            else if (_selectedAction == ContentServerAction.SearchGroups)
+            {
+                foreach (DataGridViewColumn col in dataGridViewReport.Columns)
+                {
+                    // Group ID stays read-only; all other columns are editable
+                    col.ReadOnly = col.Name == "colGroupId" || col.Name == "colDateCreated";
+                }
+            }
+        }
+
+
+        /// colDateCreated
+        /// <summary>
+        /// Enables the Generate Input File button only when a valid option is selected.
+        /// </summary>
+        private void cboGenerateOption_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            btnGenerateInputFile.Enabled = cboGenerateOption.SelectedIndex > 0;
+        }
+
+        /// <summary>
+        /// Generates a CSV input file from the grid data, using OTDS field names as headers
+        /// so the file can be directly used with the Update Users or Update Groups actions.
+        /// </summary>
+        private void btnGenerateInputFile_Click(object? sender, EventArgs e)
+        {
+            var selectedOption = cboGenerateOption.SelectedItem?.ToString() ?? string.Empty;
+
+            if (selectedOption == "Update Users")
+            {
+                GenerateUpdateUsersCsv();
+            }
+            else if (selectedOption == "Update Groups")
+            {
+                GenerateUpdateGroupsCsv();
+            }
+        }
+
+        /// <summary>
+        /// Clears all currently highlighted rows/cells in the grid.
+        /// </summary>
+        private void btnClearSelected_Click(object? sender, EventArgs e)
+        {
+            dataGridViewReport.ClearSelection();
+        }
+
+        /// <summary>
+        /// Generates a CSV file for the "Update Users" action.
+        /// Headers use OTDS field names: user_id, displayName, mail, givenName, sn, cn
+        /// </summary>
+        private void GenerateUpdateUsersCsv()
+        {
+            using var dialog = new SaveFileDialog
+            {
+                Title = "Generate Update Users Input File",
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                DefaultExt = "csv",
+                FileName = $"update_users_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+            };
+
+            if (dialog.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                using var writer = new StreamWriter(dialog.FileName, false, Encoding.UTF8);
+
+                // OTDS field name headers that match what UpdateOtdsUserFromCsvAsync expects
+                writer.WriteLine("user_id,displayName,mail,givenName,sn,cn");
+
+                foreach (var row in GetRowsForExport())
+                {
+                    // Map grid columns to OTDS field names
+                    // Grid: User ID | User Partition ID | Name | Surname | Display Name | Mail | CN
+                    var userId = EscapeCsvField(row.Cells[0].Value?.ToString() ?? string.Empty);
+                    var displayName = EscapeCsvField(row.Cells[4].Value?.ToString() ?? string.Empty);
+                    var mail = EscapeCsvField(row.Cells[5].Value?.ToString() ?? string.Empty);
+                    var givenName = EscapeCsvField(row.Cells[2].Value?.ToString() ?? string.Empty);
+                    var sn = EscapeCsvField(row.Cells[3].Value?.ToString() ?? string.Empty);
+                    var cn = EscapeCsvField(row.Cells[6].Value?.ToString() ?? string.Empty);
+
+                    writer.WriteLine($"{userId},{displayName},{mail},{givenName},{sn},{cn}");
+                }
+
+                MessageBox.Show(
+                    $"Update Users input file saved to:\n{dialog.FileName}",
+                    "File Generated",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error generating file: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Generates a CSV file for the "Update Groups" action.
+        /// Headers use OTDS field names: group_id, cn, description
+        /// </summary>
+        private void GenerateUpdateGroupsCsv()
+        {
+            using var dialog = new SaveFileDialog
+            {
+                Title = "Generate Update Groups Input File",
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                DefaultExt = "csv",
+                FileName = $"update_groups_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+            };
+
+            if (dialog.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                using var writer = new StreamWriter(dialog.FileName, false, Encoding.UTF8);
+
+                // OTDS field name headers that match what UpdateOtdsGroupFromCsvAsync expects
+                // Grid: Group ID | Group Name | Date Created
+                writer.WriteLine("group_id,cn");
+
+                foreach (var row in GetRowsForExport())
+                {
+                    var groupId = EscapeCsvField(row.Cells[0].Value?.ToString() ?? string.Empty);
+                    var cn = EscapeCsvField(row.Cells[1].Value?.ToString() ?? string.Empty);
+
+                    writer.WriteLine($"{groupId},{cn}");
+                }
+
+                MessageBox.Show(
+                    $"Update Groups input file saved to:\n{dialog.FileName}",
+                    "File Generated",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error generating file: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Escapes a value for inclusion in a CSV field.
+        /// Wraps in quotes if it contains commas, quotes, or newlines.
+        /// </summary>
+        private static string EscapeCsvField(string value)
+        {
+            if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
+            {
+                return $"\"{value.Replace("\"", "\"\"")}\"";
+            }
+            return value;
+        }
+
+        /// <summary>
+        /// Returns rows for export/generation:
+        /// 1) highlighted rows (or rows owning highlighted cells), else
+        /// 2) all currently visible rows.
+        /// </summary>
+        private List<DataGridViewRow> GetRowsForExport()
+        {
+            var selectedRows = dataGridViewReport.SelectedRows
+                .Cast<DataGridViewRow>()
+                .Where(r => !r.IsNewRow)
+                .OrderBy(r => r.Index)
+                .ToList();
+
+            if (selectedRows.Count == 0 && dataGridViewReport.SelectedCells.Count > 0)
+            {
+                selectedRows = dataGridViewReport.SelectedCells
+                    .Cast<DataGridViewCell>()
+                    .Select(c => c.OwningRow)
+                    .Where(r => r != null && !r.IsNewRow)
+                    .Distinct()
+                    .OrderBy(r => r.Index)
+                    .ToList();
+            }
+
+            if (selectedRows.Count > 0)
+            {
+                return selectedRows;
+            }
+
+            return dataGridViewReport.Rows
+                .Cast<DataGridViewRow>()
+                .Where(r => !r.IsNewRow && r.Visible)
+                .OrderBy(r => r.Index)
+                .ToList();
         }
 
         /// <summary>
@@ -101,6 +378,12 @@ namespace Search_for_Users
                 }
 
                 var users = ExtractUsersFromLog(logContent);
+                
+                // Store users for filtering if enabled
+                if (_enableFiltering)
+                {
+                    _allUsers = users;
+                }
 
                 // Populate the DataGridView with extracted data.
                 foreach (var user in users)
@@ -125,6 +408,199 @@ namespace Search_for_Users
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>
+        /// Adds filter controls above the DataGridView for Search for Users action.
+        /// </summary>
+        private void AddFilterControls()
+        {
+            // Create filter panel
+            _filterPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 70,
+                Padding = new Padding(10, 5, 10, 5)
+            };
+
+            // Create filter text boxes for each column
+            var filterLabel = new Label
+            {
+                Text = "Filters:",
+                Location = new Point(10, 8),
+                AutoSize = true,
+                Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold)
+            };
+            _filterPanel.Controls.Add(filterLabel);
+
+            var startX = 60;
+            var spacing = 130;
+
+            _filterUserId = CreateFilterTextBox("User ID", startX, spacing * 0);
+            _filterPartition = CreateFilterTextBox("Partition", startX, spacing * 1);
+            _filterName = CreateFilterTextBox("Name", startX, spacing * 2);
+            _filterSurname = CreateFilterTextBox("Surname", startX, spacing * 3);
+            _filterDisplayName = CreateFilterTextBox("Display Name", startX, spacing * 4);
+            _filterMail = CreateFilterTextBox("Mail", startX, spacing * 5);
+            _filterCn = CreateFilterTextBox("CN", startX, spacing * 6);
+
+            _filterPanel.Controls.Add(_filterUserId);
+            _filterPanel.Controls.Add(_filterPartition);
+            _filterPanel.Controls.Add(_filterName);
+            _filterPanel.Controls.Add(_filterSurname);
+            _filterPanel.Controls.Add(_filterDisplayName);
+            _filterPanel.Controls.Add(_filterMail);
+            _filterPanel.Controls.Add(_filterCn);
+
+            // Create Filter button
+            _btnFilter = new Button
+            {
+                Text = "Filter",
+                Location = new Point(startX + spacing * 7, 25),
+                Size = new Size(70, 25)
+            };
+            _btnFilter.Click += BtnFilter_Click;
+            _filterPanel.Controls.Add(_btnFilter);
+
+            // Create Clear button
+            _btnClearFilter = new Button
+            {
+                Text = "Clear",
+                Location = new Point(startX + spacing * 7 + 75, 25),
+                Size = new Size(70, 25)
+            };
+            _btnClearFilter.Click += BtnClearFilter_Click;
+            _filterPanel.Controls.Add(_btnClearFilter);
+
+            // Add panel to form (above DataGridView)
+            this.Controls.Add(_filterPanel);
+            _filterPanel.BringToFront();
+            
+            // Adjust DataGridView position
+            dataGridViewReport.Top += 70;
+            dataGridViewReport.Height -= 70;
+        }
+
+        /// <summary>
+        /// Creates a filter text box with a placeholder label.
+        /// </summary>
+        private TextBox CreateFilterTextBox(string placeholder, int baseX, int offsetX)
+        {
+            var textBox = new TextBox
+            {
+                Location = new Point(baseX + offsetX, 27),
+                Size = new Size(120, 23),
+                PlaceholderText = placeholder
+            };
+            
+            // Allow Enter key to trigger filter
+            textBox.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    BtnFilter_Click(s, e);
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+            };
+            
+            return textBox;
+        }
+
+        /// <summary>
+        /// Checks whether a cell value matches a filter string.
+        /// Supports special keywords: &lt;empty&gt; matches blank values,
+        /// &lt;not empty&gt; matches non-blank values.
+        /// An empty filter matches everything.
+        /// </summary>
+        private static bool MatchesFilter(string value, string filter)
+        {
+            if (string.IsNullOrEmpty(filter))
+                return true;
+
+            if (filter.Equals("<empty>", StringComparison.OrdinalIgnoreCase))
+                return string.IsNullOrWhiteSpace(value);
+
+            if (filter.Equals("<not empty>", StringComparison.OrdinalIgnoreCase))
+                return !string.IsNullOrWhiteSpace(value);
+
+            return value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Applies filters to the DataGridView based on filter text box values.
+        /// Supports special keywords: &lt;empty&gt; and &lt;not empty&gt;.
+        /// </summary>
+        private void BtnFilter_Click(object? sender, EventArgs e)
+        {
+            if (_allUsers == null) return;
+
+            var filterUserId = _filterUserId?.Text?.Trim() ?? string.Empty;
+            var filterPartition = _filterPartition?.Text?.Trim() ?? string.Empty;
+            var filterName = _filterName?.Text?.Trim() ?? string.Empty;
+            var filterSurname = _filterSurname?.Text?.Trim() ?? string.Empty;
+            var filterDisplayName = _filterDisplayName?.Text?.Trim() ?? string.Empty;
+            var filterMail = _filterMail?.Text?.Trim() ?? string.Empty;
+            var filterCn = _filterCn?.Text?.Trim() ?? string.Empty;
+
+            var filteredUsers = _allUsers.Where(u =>
+                MatchesFilter(u.UserId, filterUserId) &&
+                MatchesFilter(u.UserPartitionID, filterPartition) &&
+                MatchesFilter(u.Name, filterName) &&
+                MatchesFilter(u.Surname, filterSurname) &&
+                MatchesFilter(u.DisplayName, filterDisplayName) &&
+                MatchesFilter(u.Mail, filterMail) &&
+                MatchesFilter(u.Cn, filterCn)
+            ).ToList();
+
+            // Clear and repopulate the DataGridView
+            dataGridViewReport.Rows.Clear();
+            foreach (var user in filteredUsers)
+            {
+                dataGridViewReport.Rows.Add(
+                    user.UserId,
+                    user.UserPartitionID,
+                    user.Name,
+                    user.Surname,
+                    user.DisplayName,
+                    user.Mail,
+                    user.Cn);
+            }
+
+            lblRecordCount.Text = $"Records: {filteredUsers.Count} (of {_allUsers.Count})";
+        }
+
+        /// <summary>
+        /// Clears all filters and shows all data.
+        /// </summary>
+        private void BtnClearFilter_Click(object? sender, EventArgs e)
+        {
+            // Clear filter text boxes
+            if (_filterUserId != null) _filterUserId.Text = string.Empty;
+            if (_filterPartition != null) _filterPartition.Text = string.Empty;
+            if (_filterName != null) _filterName.Text = string.Empty;
+            if (_filterSurname != null) _filterSurname.Text = string.Empty;
+            if (_filterDisplayName != null) _filterDisplayName.Text = string.Empty;
+            if (_filterMail != null) _filterMail.Text = string.Empty;
+            if (_filterCn != null) _filterCn.Text = string.Empty;
+
+            // Restore all data
+            if (_allUsers == null) return;
+
+            dataGridViewReport.Rows.Clear();
+            foreach (var user in _allUsers)
+            {
+                dataGridViewReport.Rows.Add(
+                    user.UserId,
+                    user.UserPartitionID,
+                    user.Name,
+                    user.Surname,
+                    user.DisplayName,
+                    user.Mail,
+                    user.Cn);
+            }
+
+            lblRecordCount.Text = $"Records: {_allUsers.Count}";
         }
 
         /// <summary>
@@ -175,6 +651,14 @@ namespace Search_for_Users
             dataGridViewReport.Columns.Clear();
             dataGridViewReport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
+            var groupIdColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "colGroupId",
+                HeaderText = "Group ID",
+                ReadOnly = true
+            };
+            dataGridViewReport.Columns.Add(groupIdColumn);
+
             var groupNameColumn = new DataGridViewTextBoxColumn
             {
                 Name = "colGroupName",
@@ -196,7 +680,7 @@ namespace Search_for_Users
 
             foreach (var group in groups)
             {
-                dataGridViewReport.Rows.Add(group.GroupName, group.DateCreated);
+                dataGridViewReport.Rows.Add(group.GroupId, group.GroupName, group.DateCreated);
             }
 
             lblRecordCount.Text = $"Groups: {groups.Count}";
@@ -801,10 +1285,11 @@ namespace Search_for_Users
         /// </summary>
         private GroupRecord? ExtractGroupRecord(JsonElement groupElement)
         {
+            var groupId = string.Empty;
             var cn = string.Empty;
             var createTimestamp = string.Empty;
 
-            // Helper to extract first value from an array property
+            // Helper to extract first value from an array property (e.g. "cn": ["value"])
             string GetFirstArrayValue(JsonElement parent, string propertyName)
             {
                 if (parent.TryGetProperty(propertyName, out var array) &&
@@ -818,17 +1303,42 @@ namespace Search_for_Users
                 return string.Empty;
             }
 
-            // Try to get cn directly from the group element
-            cn = GetFirstArrayValue(groupElement, "cn");
-
-            // If not found, try inside "attributes" object
-            if (string.IsNullOrEmpty(cn) &&
-                groupElement.TryGetProperty("attributes", out var attributes))
+            // Extract group id
+            if (groupElement.TryGetProperty("id", out var idProp) &&
+                idProp.ValueKind == JsonValueKind.String)
             {
-                cn = GetFirstArrayValue(attributes, "cn");
+                groupId = idProp.GetString() ?? string.Empty;
             }
 
-            // If cn is still empty, try to get name directly from the element
+            // --- Strategy 1: "values" array with { "name": "...", "values": [...] } objects ---
+            // The "Search All Groups" response uses this format.
+            cn = ExtractValueByName(groupElement, "cn") ?? string.Empty;
+            createTimestamp = ExtractValueByName(groupElement, "createTimestamp") ?? string.Empty;
+
+            // --- Strategy 2: "attributes" object with direct array properties ---
+            // Some OTDS responses nest data here instead.
+            if (string.IsNullOrEmpty(cn) || string.IsNullOrEmpty(createTimestamp))
+            {
+                if (groupElement.TryGetProperty("attributes", out var attrsObj) &&
+                    attrsObj.ValueKind == JsonValueKind.Object)
+                {
+                    if (string.IsNullOrEmpty(cn))
+                    {
+                        cn = GetFirstArrayValue(attrsObj, "cn");
+                    }
+                    if (string.IsNullOrEmpty(createTimestamp))
+                    {
+                        createTimestamp = GetFirstArrayValue(attrsObj, "createTimestamp");
+                    }
+                }
+            }
+
+            // --- Strategy 3: direct properties on the group element ---
+            if (string.IsNullOrEmpty(cn))
+            {
+                cn = GetFirstArrayValue(groupElement, "cn");
+            }
+
             if (string.IsNullOrEmpty(cn) &&
                 groupElement.TryGetProperty("name", out var nameProp) &&
                 nameProp.ValueKind == JsonValueKind.String)
@@ -836,20 +1346,14 @@ namespace Search_for_Users
                 cn = nameProp.GetString() ?? string.Empty;
             }
 
-            // Try to get createTimestamp directly from the group element
-            createTimestamp = GetFirstArrayValue(groupElement, "createTimestamp");
-
-            // If not found, try inside "attributes" object
-            if (string.IsNullOrEmpty(createTimestamp) &&
-                groupElement.TryGetProperty("attributes", out var attrs))
+            if (string.IsNullOrEmpty(createTimestamp))
             {
-                createTimestamp = GetFirstArrayValue(attrs, "createTimestamp");
+                createTimestamp = GetFirstArrayValue(groupElement, "createTimestamp");
             }
 
             // Format the timestamp for display if present
             if (!string.IsNullOrEmpty(createTimestamp))
             {
-                // Try to parse and format the timestamp
                 if (DateTime.TryParse(createTimestamp, out var parsedDate))
                 {
                     createTimestamp = parsedDate.ToString("yyyy-MM-dd HH:mm:ss");
@@ -861,6 +1365,7 @@ namespace Search_for_Users
             {
                 return new GroupRecord
                 {
+                    GroupId = groupId,
                     GroupName = cn,
                     DateCreated = createTimestamp
                 };
@@ -889,9 +1394,9 @@ namespace Search_for_Users
                     using var doc = JsonDocument.Parse(jsonBlock);
                     var root = doc.RootElement;
 
-                    // Check if this JSON has a "users" array (search results).
-                    if (root.TryGetProperty("users", out var usersArray) &&
-                        usersArray.ValueKind == JsonValueKind.Array)
+                    // Check if this JSON has a users array (search results).
+                    // OTDS responses can use either "users" or "_users".
+                    if (TryGetUsersArray(root, out var usersArray))
                     {
                         foreach (var userElement in usersArray.EnumerateArray())
                         {
@@ -920,6 +1425,27 @@ namespace Search_for_Users
             }
 
             return users;
+        }
+
+        /// <summary>
+        /// Tries to locate a users array on the JSON root. Supports both "users" and "_users".
+        /// </summary>
+        private static bool TryGetUsersArray(JsonElement root, out JsonElement usersArray)
+        {
+            if (root.TryGetProperty("users", out usersArray) &&
+                usersArray.ValueKind == JsonValueKind.Array)
+            {
+                return true;
+            }
+
+            if (root.TryGetProperty("_users", out usersArray) &&
+                usersArray.ValueKind == JsonValueKind.Array)
+            {
+                return true;
+            }
+
+            usersArray = default;
+            return false;
         }
 
         /// <summary>
@@ -1096,14 +1622,11 @@ namespace Search_for_Users
                         writer.WriteLine("Log Entry");
 
                         // Write data rows.
-                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        foreach (var row in GetRowsForExport())
                         {
-                            if (!row.IsNewRow)
-                            {
-                                var logEntry = row.Cells[0].Value?.ToString() ?? string.Empty;
-                                // Escape values for CSV.
-                                writer.WriteLine($"\"{logEntry.Replace("\"", "\"\"")}\"");
-                            }
+                            var logEntry = row.Cells[0].Value?.ToString() ?? string.Empty;
+                            // Escape values for CSV.
+                            writer.WriteLine($"\"{logEntry.Replace("\"", "\"\"")}\"");
                         }
                     }
                     else if (_selectedAction == ContentServerAction.AddUserToGroup)
@@ -1112,38 +1635,34 @@ namespace Search_for_Users
                         writer.WriteLine("User,Group");
 
                         // Write data rows.
-                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        foreach (var row in GetRowsForExport())
                         {
-                            if (!row.IsNewRow)
-                            {
-                                var user = row.Cells[0].Value?.ToString() ?? string.Empty;
-                                var group = row.Cells[1].Value?.ToString() ?? string.Empty;
+                            var user = row.Cells[0].Value?.ToString() ?? string.Empty;
+                            var group = row.Cells[1].Value?.ToString() ?? string.Empty;
 
-                                // Escape values for CSV.
-                                writer.WriteLine(
-                                    $"\"{user.Replace("\"", "\"\"")}\","
-                                    + $"\"{group.Replace("\"", "\"\"")}\"");
-                            }
+                            // Escape values for CSV.
+                            writer.WriteLine(
+                                $"\"{user.Replace("\"", "\"\"")}\","
+                                + $"\"{group.Replace("\"", "\"\"")}\"");
                         }
                     }
                     else if (_selectedAction == ContentServerAction.SearchGroups)
                     {
                         // Write header for groups view.
-                        writer.WriteLine("Group Name,Date Created");
+                        writer.WriteLine("Group ID,Group Name,Date Created");
 
                         // Write data rows.
-                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        foreach (var row in GetRowsForExport())
                         {
-                            if (!row.IsNewRow)
-                            {
-                                var groupName = row.Cells[0].Value?.ToString() ?? string.Empty;
-                                var dateCreated = row.Cells[1].Value?.ToString() ?? string.Empty;
+                            var groupId = row.Cells[0].Value?.ToString() ?? string.Empty;
+                            var groupName = row.Cells[1].Value?.ToString() ?? string.Empty;
+                            var dateCreated = row.Cells[2].Value?.ToString() ?? string.Empty;
 
-                                // Escape values for CSV.
-                                writer.WriteLine(
-                                    $"\"{groupName.Replace("\"", "\"\"")}\","
-                                    + $"\"{dateCreated.Replace("\"", "\"\"")}\"");
-                            }
+                            // Escape values for CSV.
+                            writer.WriteLine(
+                                $"\"{groupId.Replace("\"", "\"\"")}\","
+                                + $"\"{groupName.Replace("\"", "\"\"")}\","
+                                + $"\"{dateCreated.Replace("\"", "\"\"")}\"");
                         }
                     }
                     else if (_selectedAction == ContentServerAction.CreateGroups)
@@ -1152,18 +1671,15 @@ namespace Search_for_Users
                         writer.WriteLine("Partition Name,Group Name");
 
                         // Write data rows.
-                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        foreach (var row in GetRowsForExport())
                         {
-                            if (!row.IsNewRow)
-                            {
-                                var partitionName = row.Cells[0].Value?.ToString() ?? string.Empty;
-                                var groupName = row.Cells[1].Value?.ToString() ?? string.Empty;
+                            var partitionName = row.Cells[0].Value?.ToString() ?? string.Empty;
+                            var groupName = row.Cells[1].Value?.ToString() ?? string.Empty;
 
-                                // Escape values for CSV.
-                                writer.WriteLine(
-                                    $"\"{partitionName.Replace("\"", "\"\"")}\","
-                                    + $"\"{groupName.Replace("\"", "\"\"")}\"");
-                            }
+                            // Escape values for CSV.
+                            writer.WriteLine(
+                                $"\"{partitionName.Replace("\"", "\"\"")}\","
+                                + $"\"{groupName.Replace("\"", "\"\"")}\"");
                         }
                     }
                     else if (_selectedAction == ContentServerAction.UpdateGroups)
@@ -1172,22 +1688,19 @@ namespace Search_for_Users
                         writer.WriteLine("Partition Name,Group Name,Description,Name");
 
                         // Write data rows.
-                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        foreach (var row in GetRowsForExport())
                         {
-                            if (!row.IsNewRow)
-                            {
-                                var partitionName = row.Cells[0].Value?.ToString() ?? string.Empty;
-                                var groupName = row.Cells[1].Value?.ToString() ?? string.Empty;
-                                var description = row.Cells[2].Value?.ToString() ?? string.Empty;
-                                var name = row.Cells[3].Value?.ToString() ?? string.Empty;
+                            var partitionName = row.Cells[0].Value?.ToString() ?? string.Empty;
+                            var groupName = row.Cells[1].Value?.ToString() ?? string.Empty;
+                            var description = row.Cells[2].Value?.ToString() ?? string.Empty;
+                            var name = row.Cells[3].Value?.ToString() ?? string.Empty;
 
-                                // Escape values for CSV.
-                                writer.WriteLine(
-                                    $"\"{partitionName.Replace("\"", "\"\"")}\","
-                                    + $"\"{groupName.Replace("\"", "\"\"")}\","
-                                    + $"\"{description.Replace("\"", "\"\"")}\","
-                                    + $"\"{name.Replace("\"", "\"\"")}\"");
-                            }
+                            // Escape values for CSV.
+                            writer.WriteLine(
+                                $"\"{partitionName.Replace("\"", "\"\"")}\","
+                                + $"\"{groupName.Replace("\"", "\"\"")}\","
+                                + $"\"{description.Replace("\"", "\"\"")}\","
+                                + $"\"{name.Replace("\"", "\"\"")}\"");
                         }
                     }
                     else if (_selectedAction == ContentServerAction.CreateSubGroups)
@@ -1196,20 +1709,17 @@ namespace Search_for_Users
                         writer.WriteLine("Partition Name,Parent Group Name,Subgroup Name");
 
                         // Write data rows.
-                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        foreach (var row in GetRowsForExport())
                         {
-                            if (!row.IsNewRow)
-                            {
-                                var partitionName = row.Cells[0].Value?.ToString() ?? string.Empty;
-                                var parentGroupName = row.Cells[1].Value?.ToString() ?? string.Empty;
-                                var subGroupName = row.Cells[2].Value?.ToString() ?? string.Empty;
+                            var partitionName = row.Cells[0].Value?.ToString() ?? string.Empty;
+                            var parentGroupName = row.Cells[1].Value?.ToString() ?? string.Empty;
+                            var subGroupName = row.Cells[2].Value?.ToString() ?? string.Empty;
 
-                                // Escape values for CSV.
-                                writer.WriteLine(
-                                    $"\"{partitionName.Replace("\"", "\"\"")}\","
-                                    + $"\"{parentGroupName.Replace("\"", "\"\"")}\","
-                                    + $"\"{subGroupName.Replace("\"", "\"\"")}\"");
-                            }
+                            // Escape values for CSV.
+                            writer.WriteLine(
+                                $"\"{partitionName.Replace("\"", "\"\"")}\","
+                                + $"\"{parentGroupName.Replace("\"", "\"\"")}\","
+                                + $"\"{subGroupName.Replace("\"", "\"\"")}\"");
                         }
                     }
                     else
@@ -1218,28 +1728,25 @@ namespace Search_for_Users
                         writer.WriteLine("User ID,User Partition ID,Name,Surname,Display Name,Mail,CN");
 
                         // Write data rows.
-                        foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                        foreach (var row in GetRowsForExport())
                         {
-                            if (!row.IsNewRow)
-                            {
-                                var userId = row.Cells[0].Value?.ToString() ?? string.Empty;
-                                var userPartitionID = row.Cells[1].Value?.ToString() ?? string.Empty;
-                                var name = row.Cells[2].Value?.ToString() ?? string.Empty;
-                                var surname = row.Cells[3].Value?.ToString() ?? string.Empty;
-                                var displayName = row.Cells[4].Value?.ToString() ?? string.Empty;
-                                var mail = row.Cells[5].Value?.ToString() ?? string.Empty;
-                                var cn = row.Cells[6].Value?.ToString() ?? string.Empty;
-                                
-                                // Escape values for CSV.
-                                writer.WriteLine(
-                                    $"\"{userId.Replace("\"", "\"\"")}\","
-                                    + $"\"{userPartitionID.Replace("\"", "\"\"")}\","
-                                    + $"\"{name.Replace("\"", "\"\"")}\","
-                                    + $"\"{surname.Replace("\"", "\"\"")}\","
-                                    + $"\"{displayName.Replace("\"", "\"\"")}\","
-                                    + $"\"{mail.Replace("\"", "\"\"")}\","
-                                    + $"\"{cn.Replace("\"", "\"\"")}\"");
-                            }
+                            var userId = row.Cells[0].Value?.ToString() ?? string.Empty;
+                            var userPartitionID = row.Cells[1].Value?.ToString() ?? string.Empty;
+                            var name = row.Cells[2].Value?.ToString() ?? string.Empty;
+                            var surname = row.Cells[3].Value?.ToString() ?? string.Empty;
+                            var displayName = row.Cells[4].Value?.ToString() ?? string.Empty;
+                            var mail = row.Cells[5].Value?.ToString() ?? string.Empty;
+                            var cn = row.Cells[6].Value?.ToString() ?? string.Empty;
+
+                            // Escape values for CSV.
+                            writer.WriteLine(
+                                $"\"{userId.Replace("\"", "\"\"")}\","
+                                + $"\"{userPartitionID.Replace("\"", "\"\"")}\","
+                                + $"\"{name.Replace("\"", "\"\"")}\","
+                                + $"\"{surname.Replace("\"", "\"\"")}\","
+                                + $"\"{displayName.Replace("\"", "\"\"")}\","
+                                + $"\"{mail.Replace("\"", "\"\"")}\","
+                                + $"\"{cn.Replace("\"", "\"\"")}\"");
                         }
                     }
 
@@ -1279,6 +1786,7 @@ namespace Search_for_Users
         /// </summary>
         private class GroupRecord
         {
+            public string GroupId { get; set; } = string.Empty;
             public string GroupName { get; set; } = string.Empty;
             public string DateCreated { get; set; } = string.Empty;
         }

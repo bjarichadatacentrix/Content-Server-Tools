@@ -22,6 +22,8 @@ namespace Search_for_Users
         private System.Windows.Forms.RadioButton radioAddUserToGroup;
         private System.Windows.Forms.RadioButton radioRemoveUserFromGroup;
         private System.Windows.Forms.RadioButton radioSearchUserById;
+        private System.Windows.Forms.CheckBox chkSearchAllUsers;
+        private System.Windows.Forms.CheckBox chkSearchAllGroups;
         private System.Windows.Forms.Button btnNext;
 
         /// <summary>
@@ -47,23 +49,25 @@ namespace Search_for_Users
         {
             btnBack = new Button();
             panelContainer = new Panel();
+            groupBox2 = new GroupBox();
+            radioRemoveUserFromGroup = new RadioButton();
+            radioAddUserToGroup = new RadioButton();
             groupBox1 = new GroupBox();
             radioDeleteGroup = new RadioButton();
             radioUpdateGroups = new RadioButton();
             radioCreateSubGroups = new RadioButton();
             radioCreateGroups = new RadioButton();
             radioSearchGroups = new RadioButton();
+            chkSearchAllGroups = new CheckBox();
             grpLogs = new GroupBox();
             radioSearchForUsers = new RadioButton();
+            chkSearchAllUsers = new CheckBox();
             radioSearchUserById = new RadioButton();
             radioCreateUser = new RadioButton();
             radioDeleteUser = new RadioButton();
             radioUpdateUser = new RadioButton();
             btnNext = new Button();
             labelHeading = new Label();
-            groupBox2 = new GroupBox();
-            radioAddUserToGroup = new RadioButton();
-            radioRemoveUserFromGroup = new RadioButton();
             panelContainer.SuspendLayout();
             groupBox2.SuspendLayout();
             groupBox1.SuspendLayout();
@@ -94,6 +98,42 @@ namespace Search_for_Users
             panelContainer.Size = new Size(640, 320);
             panelContainer.TabIndex = 1;
             // 
+            // groupBox2
+            // 
+            groupBox2.Controls.Add(radioRemoveUserFromGroup);
+            groupBox2.Controls.Add(radioAddUserToGroup);
+            groupBox2.Font = new Font("Segoe UI", 10F);
+            groupBox2.Location = new Point(410, 84);
+            groupBox2.Name = "groupBox2";
+            groupBox2.Size = new Size(200, 145);
+            groupBox2.TabIndex = 17;
+            groupBox2.TabStop = false;
+            groupBox2.Text = "Users Groups";
+            // 
+            // radioRemoveUserFromGroup
+            // 
+            radioRemoveUserFromGroup.AutoSize = true;
+            radioRemoveUserFromGroup.Location = new Point(15, 66);
+            radioRemoveUserFromGroup.Name = "radioRemoveUserFromGroup";
+            radioRemoveUserFromGroup.Size = new Size(190, 23);
+            radioRemoveUserFromGroup.TabIndex = 1;
+            radioRemoveUserFromGroup.TabStop = true;
+            radioRemoveUserFromGroup.Text = "Remove Users from Group";
+            radioRemoveUserFromGroup.UseVisualStyleBackColor = true;
+            radioRemoveUserFromGroup.CheckedChanged += UsersGroupsRadioButton_CheckedChanged;
+            // 
+            // radioAddUserToGroup
+            // 
+            radioAddUserToGroup.AutoSize = true;
+            radioAddUserToGroup.Location = new Point(15, 32);
+            radioAddUserToGroup.Name = "radioAddUserToGroup";
+            radioAddUserToGroup.Size = new Size(144, 23);
+            radioAddUserToGroup.TabIndex = 0;
+            radioAddUserToGroup.TabStop = true;
+            radioAddUserToGroup.Text = "Add User to Group";
+            radioAddUserToGroup.UseVisualStyleBackColor = true;
+            radioAddUserToGroup.CheckedChanged += UsersGroupsRadioButton_CheckedChanged;
+            // 
             // groupBox1
             // 
             groupBox1.Controls.Add(radioDeleteGroup);
@@ -101,10 +141,11 @@ namespace Search_for_Users
             groupBox1.Controls.Add(radioCreateSubGroups);
             groupBox1.Controls.Add(radioCreateGroups);
             groupBox1.Controls.Add(radioSearchGroups);
+            groupBox1.Controls.Add(chkSearchAllGroups);
             groupBox1.Font = new Font("Segoe UI", 10F);
             groupBox1.Location = new Point(202, 84);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(160, 211);
+            groupBox1.Size = new Size(180, 211);
             groupBox1.TabIndex = 16;
             groupBox1.TabStop = false;
             groupBox1.Text = "Groups";
@@ -169,9 +210,21 @@ namespace Search_for_Users
             radioSearchGroups.UseVisualStyleBackColor = true;
             radioSearchGroups.CheckedChanged += GroupsRadioButton_CheckedChanged;
             // 
+            // chkSearchAllGroups
+            // 
+            chkSearchAllGroups.AutoSize = true;
+            chkSearchAllGroups.Location = new Point(133, 34);
+            chkSearchAllGroups.Name = "chkSearchAllGroups";
+            chkSearchAllGroups.Size = new Size(43, 23);
+            chkSearchAllGroups.TabIndex = 5;
+            chkSearchAllGroups.Text = "All";
+            chkSearchAllGroups.UseVisualStyleBackColor = true;
+            chkSearchAllGroups.CheckedChanged += chkSearchAllGroups_CheckedChanged;
+            // 
             // grpLogs
             // 
             grpLogs.Controls.Add(radioSearchForUsers);
+            grpLogs.Controls.Add(chkSearchAllUsers);
             grpLogs.Controls.Add(radioSearchUserById);
             grpLogs.Controls.Add(radioCreateUser);
             grpLogs.Controls.Add(radioDeleteUser);
@@ -179,7 +232,7 @@ namespace Search_for_Users
             grpLogs.Font = new Font("Segoe UI", 10F);
             grpLogs.Location = new Point(21, 84);
             grpLogs.Name = "grpLogs";
-            grpLogs.Size = new Size(165, 245);
+            grpLogs.Size = new Size(180, 245);
             grpLogs.TabIndex = 15;
             grpLogs.TabStop = false;
             grpLogs.Text = "Users";
@@ -189,19 +242,30 @@ namespace Search_for_Users
             radioSearchForUsers.AutoSize = true;
             radioSearchForUsers.Location = new Point(15, 32);
             radioSearchForUsers.Name = "radioSearchForUsers";
-            radioSearchForUsers.Size = new Size(126, 23);
+            radioSearchForUsers.Size = new Size(105, 23);
             radioSearchForUsers.TabIndex = 0;
             radioSearchForUsers.TabStop = true;
-            radioSearchForUsers.Text = "Search for Users";
+            radioSearchForUsers.Text = "Search Users";
             radioSearchForUsers.UseVisualStyleBackColor = true;
             radioSearchForUsers.CheckedChanged += UsersRadioButton_CheckedChanged;
+            // 
+            // chkSearchAllUsers
+            // 
+            chkSearchAllUsers.AutoSize = true;
+            chkSearchAllUsers.Location = new Point(129, 32);
+            chkSearchAllUsers.Name = "chkSearchAllUsers";
+            chkSearchAllUsers.Size = new Size(43, 23);
+            chkSearchAllUsers.TabIndex = 6;
+            chkSearchAllUsers.Text = "All";
+            chkSearchAllUsers.UseVisualStyleBackColor = true;
+            chkSearchAllUsers.CheckedChanged += chkSearchAllUsers_CheckedChanged;
             // 
             // radioSearchUserById
             // 
             radioSearchUserById.AutoSize = true;
             radioSearchUserById.Location = new Point(15, 66);
             radioSearchUserById.Name = "radioSearchUserById";
-            radioSearchUserById.Size = new Size(138, 23);
+            radioSearchUserById.Size = new Size(136, 23);
             radioSearchUserById.TabIndex = 1;
             radioSearchUserById.TabStop = true;
             radioSearchUserById.Text = "Search User by ID";
@@ -264,46 +328,11 @@ namespace Search_for_Users
             labelHeading.TabIndex = 1;
             labelHeading.Text = "Please Select the action to be performed";
             // 
-            // groupBox2
-            // 
-            groupBox2.Controls.Add(radioRemoveUserFromGroup);
-            groupBox2.Controls.Add(radioAddUserToGroup);
-            groupBox2.Font = new Font("Segoe UI", 10F);
-            groupBox2.Location = new Point(410, 84);
-            groupBox2.Name = "groupBox2";
-            groupBox2.Size = new Size(200, 145);
-            groupBox2.TabIndex = 17;
-            groupBox2.TabStop = false;
-            groupBox2.Text = "Users Groups";
-            // 
-            // radioAddUserToGroup
-            // 
-            radioAddUserToGroup.AutoSize = true;
-            radioAddUserToGroup.Location = new Point(15, 32);
-            radioAddUserToGroup.Name = "radioAddUserToGroup";
-            radioAddUserToGroup.Size = new Size(138, 23);
-            radioAddUserToGroup.TabIndex = 0;
-            radioAddUserToGroup.TabStop = true;
-            radioAddUserToGroup.Text = "Add User to Group";
-            radioAddUserToGroup.UseVisualStyleBackColor = true;
-            radioAddUserToGroup.CheckedChanged += UsersGroupsRadioButton_CheckedChanged;
-            // 
-            // radioRemoveUserFromGroup
-            // 
-            radioRemoveUserFromGroup.AutoSize = true;
-            radioRemoveUserFromGroup.Location = new Point(15, 66);
-            radioRemoveUserFromGroup.Name = "radioRemoveUserFromGroup";
-            radioRemoveUserFromGroup.Size = new Size(175, 23);
-            radioRemoveUserFromGroup.TabIndex = 1;
-            radioRemoveUserFromGroup.TabStop = true;
-            radioRemoveUserFromGroup.Text = "Remove Users from Group";
-            radioRemoveUserFromGroup.UseVisualStyleBackColor = true;
-            radioRemoveUserFromGroup.CheckedChanged += UsersGroupsRadioButton_CheckedChanged;
-            // 
             // ActionSelectionForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = SystemColors.GradientActiveCaption;
             ClientSize = new Size(800, 400);
             Controls.Add(panelContainer);
             Controls.Add(btnBack);
@@ -311,12 +340,12 @@ namespace Search_for_Users
             Text = "Content Server Actions";
             panelContainer.ResumeLayout(false);
             panelContainer.PerformLayout();
+            groupBox2.ResumeLayout(false);
+            groupBox2.PerformLayout();
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             grpLogs.ResumeLayout(false);
             grpLogs.PerformLayout();
-            groupBox2.ResumeLayout(false);
-            groupBox2.PerformLayout();
             ResumeLayout(false);
         }
 

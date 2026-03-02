@@ -17,3 +17,4 @@ C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Release\net8.0
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Release\net8.0-windows\Search for Users.pdb
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Release\net8.0-windows\Search for Users.genruntimeconfig.cache
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Release\net8.0-windows\ref\Search for Users.dll
+C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Release\net8.0-windows\Search_for_Users.Properties.Resources.resources

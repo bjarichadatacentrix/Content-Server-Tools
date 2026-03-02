@@ -18,6 +18,9 @@ namespace Search_for_Users
         private System.Windows.Forms.DataGridViewTextBoxColumn colDisplayName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colMail;
         private System.Windows.Forms.DataGridViewTextBoxColumn colCn;
+        private System.Windows.Forms.ComboBox cboGenerateOption;
+        private System.Windows.Forms.Button btnGenerateInputFile;
+        private System.Windows.Forms.Button btnClearSelected;
 
         /// <summary>
         /// Clean up any resources being used.
@@ -43,6 +46,9 @@ namespace Search_for_Users
             btnClose = new Button();
             btnExport = new Button();
             lblRecordCount = new Label();
+            cboGenerateOption = new ComboBox();
+            btnGenerateInputFile = new Button();
+            btnClearSelected = new Button();
             colUserId = new DataGridViewTextBoxColumn();
             colUserPartitionID = new DataGridViewTextBoxColumn();
             colName = new DataGridViewTextBoxColumn();
@@ -59,6 +65,7 @@ namespace Search_for_Users
             dataGridViewReport.AllowUserToDeleteRows = false;
             dataGridViewReport.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             dataGridViewReport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridViewReport.BackgroundColor = SystemColors.GradientActiveCaption;
             dataGridViewReport.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dataGridViewReport.Columns.AddRange(new DataGridViewColumn[] { colUserId, colUserPartitionID, colName, colSurname, colDisplayName, colMail, colCn });
             dataGridViewReport.Location = new Point(12, 12);
@@ -142,15 +149,53 @@ namespace Search_for_Users
             lblRecordCount.TabIndex = 3;
             lblRecordCount.Text = "Records: 0";
             // 
+            // cboGenerateOption
+            // 
+            cboGenerateOption.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            cboGenerateOption.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboGenerateOption.FormattingEnabled = true;
+            cboGenerateOption.Location = new Point(200, 412);
+            cboGenerateOption.Name = "cboGenerateOption";
+            cboGenerateOption.Size = new Size(150, 23);
+            cboGenerateOption.TabIndex = 4;
+            cboGenerateOption.SelectedIndexChanged += cboGenerateOption_SelectedIndexChanged;
+            // 
+            // btnGenerateInputFile
+            // 
+            btnGenerateInputFile.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnGenerateInputFile.Enabled = false;
+            btnGenerateInputFile.Location = new Point(494, 408);
+            btnGenerateInputFile.Name = "btnGenerateInputFile";
+            btnGenerateInputFile.Size = new Size(130, 30);
+            btnGenerateInputFile.TabIndex = 5;
+            btnGenerateInputFile.Text = "Generate Input File";
+            btnGenerateInputFile.UseVisualStyleBackColor = true;
+            btnGenerateInputFile.Click += btnGenerateInputFile_Click;
+            // 
+            // btnClearSelected
+            // 
+            btnClearSelected.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnClearSelected.Location = new Point(360, 408);
+            btnClearSelected.Name = "btnClearSelected";
+            btnClearSelected.Size = new Size(130, 30);
+            btnClearSelected.TabIndex = 6;
+            btnClearSelected.Text = "Clear Selected";
+            btnClearSelected.UseVisualStyleBackColor = true;
+            btnClearSelected.Click += btnClearSelected_Click;
+            // 
             // ReportForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(984, 450);
+            Controls.Add(btnClearSelected);
+            Controls.Add(btnGenerateInputFile);
+            Controls.Add(cboGenerateOption);
             Controls.Add(lblRecordCount);
             Controls.Add(btnExport);
             Controls.Add(btnClose);
             Controls.Add(dataGridViewReport);
+            BackColor = SystemColors.GradientActiveCaption;
             MinimumSize = new Size(800, 300);
             Name = "ReportForm";
             StartPosition = FormStartPosition.CenterParent;
