@@ -64,6 +64,10 @@ namespace Search_for_Users
         {
             btnBack = new Button();
             panelMain = new Panel();
+            checkBox1 = new CheckBox();
+            groupBox1 = new GroupBox();
+            lblPartition = new Label();
+            lstPartitions = new ListBox();
             txtSelectedAction = new TextBox();
             label1 = new Label();
             lblErrorFilesValue = new Label();
@@ -91,14 +95,13 @@ namespace Search_for_Users
             btnChooseInputFile = new Button();
             txtInputFile = new TextBox();
             lblInputFile = new Label();
-            lstPartitions = new ListBox();
-            lblPartition = new Label();
             btnBrowseLogLocation = new Button();
             txtLogLocation = new TextBox();
             lblLogLocation = new Label();
             lblSectionTitle = new Label();
             colorDialog1 = new ColorDialog();
             panelMain.SuspendLayout();
+            groupBox1.SuspendLayout();
             grpLogs.SuspendLayout();
             SuspendLayout();
             // 
@@ -116,6 +119,8 @@ namespace Search_for_Users
             // 
             panelMain.BackColor = SystemColors.ControlLightLight;
             panelMain.BorderStyle = BorderStyle.FixedSingle;
+            panelMain.Controls.Add(checkBox1);
+            panelMain.Controls.Add(groupBox1);
             panelMain.Controls.Add(txtSelectedAction);
             panelMain.Controls.Add(label1);
             panelMain.Controls.Add(lblErrorFilesValue);
@@ -138,16 +143,56 @@ namespace Search_for_Users
             panelMain.Controls.Add(btnChooseInputFile);
             panelMain.Controls.Add(txtInputFile);
             panelMain.Controls.Add(lblInputFile);
-            panelMain.Controls.Add(lstPartitions);
-            panelMain.Controls.Add(lblPartition);
             panelMain.Controls.Add(btnBrowseLogLocation);
             panelMain.Controls.Add(txtLogLocation);
             panelMain.Controls.Add(lblLogLocation);
             panelMain.Controls.Add(lblSectionTitle);
             panelMain.Location = new Point(93, 40);
             panelMain.Name = "panelMain";
-            panelMain.Size = new Size(780, 437);
+            panelMain.Size = new Size(780, 494);
             panelMain.TabIndex = 1;
+            // 
+            // checkBox1
+            // 
+            checkBox1.AutoSize = true;
+            checkBox1.Location = new Point(41, 214);
+            checkBox1.Name = "checkBox1";
+            checkBox1.Size = new Size(74, 19);
+            checkBox1.TabIndex = 28;
+            checkBox1.Text = "Select All";
+            checkBox1.UseVisualStyleBackColor = true;
+            checkBox1.CheckedChanged += checkBox1_CheckedChanged;
+            // 
+            // groupBox1
+            // 
+            groupBox1.Controls.Add(lblPartition);
+            groupBox1.Controls.Add(lstPartitions);
+            groupBox1.Location = new Point(39, 239);
+            groupBox1.Name = "groupBox1";
+            groupBox1.Size = new Size(370, 119);
+            groupBox1.TabIndex = 27;
+            groupBox1.TabStop = false;
+            groupBox1.Text = "Partitions";
+            // 
+            // lblPartition
+            // 
+            lblPartition.AutoSize = true;
+            lblPartition.Location = new Point(17, 53);
+            lblPartition.Name = "lblPartition";
+            lblPartition.Size = new Size(52, 15);
+            lblPartition.TabIndex = 25;
+            lblPartition.Text = "Partition";
+            // 
+            // lstPartitions
+            // 
+            lstPartitions.FormattingEnabled = true;
+            lstPartitions.IntegralHeight = false;
+            lstPartitions.ItemHeight = 15;
+            lstPartitions.Location = new Point(144, 16);
+            lstPartitions.Name = "lstPartitions";
+            lstPartitions.SelectionMode = SelectionMode.MultiExtended;
+            lstPartitions.Size = new Size(220, 91);
+            lstPartitions.TabIndex = 26;
             // 
             // txtSelectedAction
             // 
@@ -337,7 +382,7 @@ namespace Search_for_Users
             // lblCurrentFile
             // 
             lblCurrentFile.AutoSize = true;
-            lblCurrentFile.Location = new Point(39, 379);
+            lblCurrentFile.Location = new Point(39, 434);
             lblCurrentFile.Name = "lblCurrentFile";
             lblCurrentFile.Size = new Size(71, 15);
             lblCurrentFile.TabIndex = 11;
@@ -345,7 +390,7 @@ namespace Search_for_Users
             // 
             // txtCurrentFile
             // 
-            txtCurrentFile.Location = new Point(160, 376);
+            txtCurrentFile.Location = new Point(160, 431);
             txtCurrentFile.Name = "txtCurrentFile";
             txtCurrentFile.ReadOnly = true;
             txtCurrentFile.Size = new Size(590, 23);
@@ -353,7 +398,7 @@ namespace Search_for_Users
             // 
             // btnStop
             // 
-            btnStop.Location = new Point(323, 314);
+            btnStop.Location = new Point(323, 372);
             btnStop.Name = "btnStop";
             btnStop.Size = new Size(100, 35);
             btnStop.TabIndex = 9;
@@ -363,7 +408,7 @@ namespace Search_for_Users
             // 
             // btnReset
             // 
-            btnReset.Location = new Point(189, 314);
+            btnReset.Location = new Point(189, 372);
             btnReset.Name = "btnReset";
             btnReset.Size = new Size(100, 35);
             btnReset.TabIndex = 8;
@@ -373,7 +418,7 @@ namespace Search_for_Users
             // 
             // btnStart
             // 
-            btnStart.Location = new Point(39, 314);
+            btnStart.Location = new Point(39, 372);
             btnStart.Name = "btnStart";
             btnStart.Size = new Size(100, 35);
             btnStart.TabIndex = 7;
@@ -407,25 +452,6 @@ namespace Search_for_Users
             lblInputFile.Size = new Size(97, 15);
             lblInputFile.TabIndex = 4;
             lblInputFile.Text = "Choose Input file";
-            // 
-            // lstPartitions
-            // 
-            lstPartitions.FormattingEnabled = true;
-            lstPartitions.IntegralHeight = false;
-            lstPartitions.Location = new Point(189, 200);
-            lstPartitions.Name = "lstPartitions";
-            lstPartitions.SelectionMode = SelectionMode.MultiExtended;
-            lstPartitions.Size = new Size(220, 91);
-            lstPartitions.TabIndex = 26;
-            // 
-            // lblPartition
-            // 
-            lblPartition.AutoSize = true;
-            lblPartition.Location = new Point(39, 225);
-            lblPartition.Name = "lblPartition";
-            lblPartition.Size = new Size(52, 15);
-            lblPartition.TabIndex = 25;
-            lblPartition.Text = "Partition";
             // 
             // btnBrowseLogLocation
             // 
@@ -469,13 +495,15 @@ namespace Search_for_Users
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.GradientActiveCaption;
-            ClientSize = new Size(900, 532);
+            ClientSize = new Size(900, 579);
             Controls.Add(panelMain);
             Controls.Add(btnBack);
             Name = "SearchForUsersForm";
             Text = "Search for Users";
             panelMain.ResumeLayout(false);
             panelMain.PerformLayout();
+            groupBox1.ResumeLayout(false);
+            groupBox1.PerformLayout();
             grpLogs.ResumeLayout(false);
             grpLogs.PerformLayout();
             ResumeLayout(false);
@@ -486,6 +514,8 @@ namespace Search_for_Users
         private Label label1;
         private TextBox txtSelectedAction;
         private ColorDialog colorDialog1;
+        private CheckBox checkBox1;
+        private GroupBox groupBox1;
     }
 }
 

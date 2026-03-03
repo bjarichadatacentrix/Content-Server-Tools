@@ -43,8 +43,14 @@ namespace Search_for_Users
         // Selected action that determines which API endpoint/method is used.
         private readonly ContentServerAction _selectedAction;
 
-        // When true, "Search for Users" will fetch ALL users without requiring a CSV file.
+        // When true, "Search for Users" (or "Search Groups") will fetch ALL users/groups without requiring a CSV file.
+        // For "Search for Users", this can also be enabled via the on-form "Select All" checkbox.
         private readonly bool _searchAllUsers;
+
+        private bool IsSearchAllUsersMode =>
+            _selectedAction == ContentServerAction.SearchForUsers
+                ? _searchAllUsers || (checkBox1?.Checked ?? false)
+                : _searchAllUsers;
 
         // Path to the last created info log file (for "View File" button).
         private string? _lastInfoLogPath;
@@ -62,6 +68,12 @@ namespace Search_for_Users
             _searchAllUsers = searchAllUsers;
 
             InitializeComponent();
+
+            // For "Search for Users", mirror any incoming "All" selection on the on-form checkbox.
+            if (_selectedAction == ContentServerAction.SearchForUsers)
+            {
+                checkBox1.Checked = _searchAllUsers;
+            }
 
             // Update the window title so the user can see which mode they are in.
             var actionName = selectedAction switch
@@ -81,7 +93,7 @@ namespace Search_for_Users
             };
 
             // Append "(All)" to the title when searching all.
-            if (_searchAllUsers)
+            if (IsSearchAllUsersMode)
             {
                 actionName += " (All)";
             }
@@ -90,7 +102,7 @@ namespace Search_for_Users
             txtSelectedAction.Text = actionName;
 
             // If searching all, disable the input file button since no CSV is needed.
-            if (_searchAllUsers)
+            if (IsSearchAllUsersMode)
             {
                 btnChooseInputFile.Enabled = false;
                 txtInputFile.Text = _selectedAction == ContentServerAction.SearchGroups
@@ -104,13 +116,14 @@ namespace Search_for_Users
 
         /// <summary>
         /// Shows and initializes the partition selector only for "Search for Users".
+        /// The actual list lives inside the "Partitions" group box.
         /// </summary>
         private void ConfigurePartitionDropdown()
         {
             var isSearchUsersAction = _selectedAction == ContentServerAction.SearchForUsers;
 
-            lblPartition.Visible = isSearchUsersAction;
-            lstPartitions.Visible = isSearchUsersAction;
+            checkBox1.Visible = isSearchUsersAction;
+            groupBox1.Visible = isSearchUsersAction && (checkBox1?.Checked ?? false);
 
             if (!isSearchUsersAction)
             {
@@ -187,6 +200,35 @@ namespace Search_for_Users
                 }
 
                 lstPartitions.Enabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Handles the "Select All" checkbox, which controls whether we are in
+        /// "search all users" mode on this form and whether the partitions box is visible.
+        /// </summary>
+        private void checkBox1_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (_selectedAction != ContentServerAction.SearchForUsers)
+            {
+                groupBox1.Visible = false;
+                return;
+            }
+
+            // Show/hide the partitions group based on the checkbox.
+            groupBox1.Visible = checkBox1.Checked;
+
+            // When in "all users" mode, no CSV is required.
+            var isAllUsersMode = IsSearchAllUsersMode;
+            btnChooseInputFile.Enabled = !isAllUsersMode;
+
+            if (isAllUsersMode)
+            {
+                txtInputFile.Text = "No CSV required \u2014 fetching all users";
+            }
+            else if (string.Equals(txtInputFile.Text, "No CSV required \u2014 fetching all users", StringComparison.Ordinal))
+            {
+                txtInputFile.Clear();
             }
         }
 
@@ -454,7 +496,7 @@ namespace Search_for_Users
                 return;
             }
 
-            if (!_searchAllUsers && _inputFiles.Count == 0)
+            if (!IsSearchAllUsersMode && _inputFiles.Count == 0)
             {
                 MessageBox.Show(
                     "Please choose at least one CSV input file.",
@@ -500,7 +542,7 @@ namespace Search_for_Users
             {
                 // Restore UI regardless of success, error, or cancellation.
                 btnStart.Enabled = true;
-                btnChooseInputFile.Enabled = !_searchAllUsers;
+                btnChooseInputFile.Enabled = !IsSearchAllUsersMode;
                 btnBrowseLogLocation.Enabled = true;
                 btnStop.Enabled = false;
             }
@@ -549,7 +591,7 @@ namespace Search_for_Users
         private async Task ProcessFilesAsync(int startRow, CancellationToken cancellationToken, string selectedPartition)
         {
             // When "Search All" mode is active, there is no CSV file to process.
-            if (_searchAllUsers && _selectedAction == ContentServerAction.SearchForUsers)
+            if (IsSearchAllUsersMode && _selectedAction == ContentServerAction.SearchForUsers)
             {
                 await ProcessSearchAllUsersAsync(cancellationToken, selectedPartition);
                 return;

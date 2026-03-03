@@ -258,6 +258,7 @@ namespace Search_for_Users
             chkSearchAllUsers.TabIndex = 6;
             chkSearchAllUsers.Text = "All";
             chkSearchAllUsers.UseVisualStyleBackColor = true;
+            chkSearchAllUsers.Visible = false;
             chkSearchAllUsers.CheckedChanged += chkSearchAllUsers_CheckedChanged;
             // 
             // radioSearchUserById
