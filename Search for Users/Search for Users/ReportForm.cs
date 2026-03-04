@@ -398,7 +398,14 @@ namespace Search_for_Users
                         user.Cn);
                 }
 
-                lblRecordCount.Text = $"Records: {users.Count}";
+                if (_enableFiltering)
+                {
+                    UpdateRecordCountLabel();
+                }
+                else
+                {
+                    lblRecordCount.Text = $"Records: {users.Count}";
+                }
             }
             catch (Exception ex)
             {
@@ -479,6 +486,9 @@ namespace Search_for_Users
             // Adjust DataGridView position
             dataGridViewReport.Top += 70;
             dataGridViewReport.Height -= 70;
+
+            // Update "Selected" count when user changes selection (e.g. Clear Selected)
+            dataGridViewReport.SelectionChanged += (s, _) => UpdateRecordCountLabel();
         }
 
         /// <summary>
@@ -528,7 +538,8 @@ namespace Search_for_Users
         }
 
         /// <summary>
-        /// Applies filters to the DataGridView based on filter text box values.
+        /// Applies filters and adds matching rows to the current selection (cumulative "hold").
+        /// Grid always shows all data; selection accumulates across multiple filter runs.
         /// Supports special keywords: &lt;empty&gt; and &lt;not empty&gt;.
         /// </summary>
         private void BtnFilter_Click(object? sender, EventArgs e)
@@ -543,39 +554,33 @@ namespace Search_for_Users
             var filterMail = _filterMail?.Text?.Trim() ?? string.Empty;
             var filterCn = _filterCn?.Text?.Trim() ?? string.Empty;
 
-            var filteredUsers = _allUsers.Where(u =>
-                MatchesFilter(u.UserId, filterUserId) &&
-                MatchesFilter(u.UserPartitionID, filterPartition) &&
-                MatchesFilter(u.Name, filterName) &&
-                MatchesFilter(u.Surname, filterSurname) &&
-                MatchesFilter(u.DisplayName, filterDisplayName) &&
-                MatchesFilter(u.Mail, filterMail) &&
-                MatchesFilter(u.Cn, filterCn)
-            ).ToList();
-
-            // Clear and repopulate the DataGridView
-            dataGridViewReport.Rows.Clear();
-            foreach (var user in filteredUsers)
+            // Row index i in the grid corresponds to _allUsers[i] (grid is populated in that order).
+            for (var i = 0; i < _allUsers.Count && i < dataGridViewReport.Rows.Count; i++)
             {
-                dataGridViewReport.Rows.Add(
-                    user.UserId,
-                    user.UserPartitionID,
-                    user.Name,
-                    user.Surname,
-                    user.DisplayName,
-                    user.Mail,
-                    user.Cn);
+                var u = _allUsers[i];
+                var matches =
+                    MatchesFilter(u.UserId, filterUserId) &&
+                    MatchesFilter(u.UserPartitionID, filterPartition) &&
+                    MatchesFilter(u.Name, filterName) &&
+                    MatchesFilter(u.Surname, filterSurname) &&
+                    MatchesFilter(u.DisplayName, filterDisplayName) &&
+                    MatchesFilter(u.Mail, filterMail) &&
+                    MatchesFilter(u.Cn, filterCn);
+                if (matches && !dataGridViewReport.Rows[i].IsNewRow)
+                {
+                    dataGridViewReport.Rows[i].Selected = true;
+                }
             }
 
-            lblRecordCount.Text = $"Records: {filteredUsers.Count} (of {_allUsers.Count})";
+            UpdateRecordCountLabel();
         }
 
         /// <summary>
-        /// Clears all filters and shows all data.
+        /// Clears only the filter text boxes. Grid and selection are left unchanged
+        /// so "held" results stay selected for cumulative filtering.
         /// </summary>
         private void BtnClearFilter_Click(object? sender, EventArgs e)
         {
-            // Clear filter text boxes
             if (_filterUserId != null) _filterUserId.Text = string.Empty;
             if (_filterPartition != null) _filterPartition.Text = string.Empty;
             if (_filterName != null) _filterName.Text = string.Empty;
@@ -583,24 +588,22 @@ namespace Search_for_Users
             if (_filterDisplayName != null) _filterDisplayName.Text = string.Empty;
             if (_filterMail != null) _filterMail.Text = string.Empty;
             if (_filterCn != null) _filterCn.Text = string.Empty;
+        }
 
-            // Restore all data
-            if (_allUsers == null) return;
+        /// <summary>
+        /// Updates the record count label to show total rows and selected count when filtering is enabled.
+        /// </summary>
+        private void UpdateRecordCountLabel()
+        {
+            if (!_enableFiltering || _allUsers == null) return;
 
-            dataGridViewReport.Rows.Clear();
-            foreach (var user in _allUsers)
-            {
-                dataGridViewReport.Rows.Add(
-                    user.UserId,
-                    user.UserPartitionID,
-                    user.Name,
-                    user.Surname,
-                    user.DisplayName,
-                    user.Mail,
-                    user.Cn);
-            }
-
-            lblRecordCount.Text = $"Records: {_allUsers.Count}";
+            var total = _allUsers.Count;
+            var selected = dataGridViewReport.SelectedRows
+                .Cast<DataGridViewRow>()
+                .Count(r => !r.IsNewRow);
+            lblRecordCount.Text = selected > 0
+                ? $"Records: {total} | Selected: {selected}"
+                : $"Records: {total}";
         }
 
         /// <summary>
