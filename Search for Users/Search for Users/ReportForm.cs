@@ -71,6 +71,23 @@ namespace Search_for_Users
             {
                 AddFilterControls();
             }
+
+            // Clear any default row selection when form is shown, so Filter only selects matching rows
+            if (_enableFiltering && _selectedAction == ContentServerAction.SearchForUsers)
+            {
+                Shown += ReportForm_Shown;
+            }
+        }
+
+        private void ReportForm_Shown(object? sender, EventArgs e)
+        {
+            Shown -= ReportForm_Shown;
+            if (_enableFiltering && _selectedAction == ContentServerAction.SearchForUsers)
+            {
+                dataGridViewReport.ClearSelection();
+                dataGridViewReport.CurrentCell = null;
+                UpdateRecordCountLabel();
+            }
         }
 
         /// <summary>
@@ -111,8 +128,8 @@ namespace Search_for_Users
             {
                 foreach (DataGridViewColumn col in dataGridViewReport.Columns)
                 {
-                    // User ID stays read-only; all other columns are editable
-                    col.ReadOnly = col.Name == "colUserId";
+                    // User ID, Account Locked, and Domain stay read-only; all other columns are editable
+                    col.ReadOnly = col.Name == "colUserId" || col.Name == "colAccountLocked" || col.Name == "colDomain";
                 }
             }
             else if (_selectedAction == ContentServerAction.SearchGroups)
@@ -159,6 +176,19 @@ namespace Search_for_Users
         private void btnClearSelected_Click(object? sender, EventArgs e)
         {
             dataGridViewReport.ClearSelection();
+            if (_enableFiltering)
+                UpdateRecordCountLabel();
+        }
+
+        /// <summary>
+        /// Clears the screen of any selected rows (clears grid selection).
+        /// </summary>
+        private void btnClearScreen_Click(object? sender, EventArgs e)
+        {
+            dataGridViewReport.ClearSelection();
+            dataGridViewReport.CurrentCell = null;
+            if (_enableFiltering)
+                UpdateRecordCountLabel();
         }
 
         /// <summary>
@@ -395,11 +425,14 @@ namespace Search_for_Users
                         user.Surname,
                         user.DisplayName,
                         user.Mail,
-                        user.Cn);
+                        user.Cn,
+                        user.AccountLocked,
+                        user.Domain);
                 }
 
                 if (_enableFiltering)
                 {
+                    dataGridViewReport.ClearSelection();
                     UpdateRecordCountLabel();
                 }
                 else
@@ -469,15 +502,25 @@ namespace Search_for_Users
             _btnFilter.Click += BtnFilter_Click;
             _filterPanel.Controls.Add(_btnFilter);
 
-            // Create Clear button
+            // Create Clear button (clears filter text boxes)
             _btnClearFilter = new Button
             {
-                Text = "Clear",
+                Text = "Clear Filter",
                 Location = new Point(startX + spacing * 7 + 75, 25),
-                Size = new Size(70, 25)
+                Size = new Size(80, 25)
             };
             _btnClearFilter.Click += BtnClearFilter_Click;
             _filterPanel.Controls.Add(_btnClearFilter);
+
+            // Create Clear Screen button (clears selected rows), next to Clear
+            var btnClearScreen = new Button
+            {
+                Text = "Clear Screen",
+                Location = new Point(startX + spacing * 7 + 75 + 90, 25),
+                Size = new Size(90, 25)
+            };
+            btnClearScreen.Click += btnClearScreen_Click;
+            _filterPanel.Controls.Add(btnClearScreen);
 
             // Add panel to form (above DataGridView)
             this.Controls.Add(_filterPanel);
@@ -1486,6 +1529,8 @@ namespace Search_for_Users
             var mail = ExtractValueByName(userElement, "mail") ?? string.Empty;
             var givenName = ExtractValueByName(userElement, "givenName") ?? string.Empty;
             var cn = ExtractValueByName(userElement, "cn") ?? string.Empty;
+            var accountLocked = ExtractValueByName(userElement, "accountLockedOut") ?? string.Empty;
+            var domain = ExtractValueByName(userElement, "oTDomainName") ?? string.Empty;
 
             // Use givenName as name if we don't have it from root.
             var name = !string.IsNullOrEmpty(givenName) ? givenName : nameFromRoot;
@@ -1506,7 +1551,9 @@ namespace Search_for_Users
                     Surname = surname,
                     DisplayName = displayName,
                     Mail = mail,
-                    Cn = cn
+                    Cn = cn,
+                    AccountLocked = accountLocked,
+                    Domain = domain
                 };
             }
 
@@ -1728,7 +1775,7 @@ namespace Search_for_Users
                     else
                     {
                         // Write header for standard user data view.
-                        writer.WriteLine("User ID,User Partition ID,Name,Surname,Display Name,Mail,CN");
+                        writer.WriteLine("User ID,User Partition ID,Name,Surname,Display Name,Mail,CN,Account Locked,Domain");
 
                         // Write data rows.
                         foreach (var row in GetRowsForExport())
@@ -1740,6 +1787,8 @@ namespace Search_for_Users
                             var displayName = row.Cells[4].Value?.ToString() ?? string.Empty;
                             var mail = row.Cells[5].Value?.ToString() ?? string.Empty;
                             var cn = row.Cells[6].Value?.ToString() ?? string.Empty;
+                            var accountLocked = row.Cells[7].Value?.ToString() ?? string.Empty;
+                            var domain = row.Cells[8].Value?.ToString() ?? string.Empty;
 
                             // Escape values for CSV.
                             writer.WriteLine(
@@ -1749,7 +1798,9 @@ namespace Search_for_Users
                                 + $"\"{surname.Replace("\"", "\"\"")}\","
                                 + $"\"{displayName.Replace("\"", "\"\"")}\","
                                 + $"\"{mail.Replace("\"", "\"\"")}\","
-                                + $"\"{cn.Replace("\"", "\"\"")}\"");
+                                + $"\"{cn.Replace("\"", "\"\"")}\","
+                                + $"\"{accountLocked.Replace("\"", "\"\"")}\","
+                                + $"\"{domain.Replace("\"", "\"\"")}\"");
                         }
                     }
 
@@ -1782,6 +1833,8 @@ namespace Search_for_Users
             public string DisplayName { get; set; } = string.Empty;
             public string Mail { get; set; } = string.Empty;
             public string Cn { get; set; } = string.Empty;
+            public string AccountLocked { get; set; } = string.Empty;
+            public string Domain { get; set; } = string.Empty;
         }
 
         /// <summary>

@@ -519,6 +519,7 @@ namespace Search_for_Users
             btnBrowseLogLocation.Enabled = false;
             btnStop.Enabled = true;
             lblLogStatus.Text = "Running";
+            this.Cursor = Cursors.WaitCursor;
 
             // Reset counters for a fresh run.
             _processedFiles = 0;
@@ -541,6 +542,7 @@ namespace Search_for_Users
             finally
             {
                 // Restore UI regardless of success, error, or cancellation.
+                this.Cursor = Cursors.Default;
                 btnStart.Enabled = true;
                 btnChooseInputFile.Enabled = !IsSearchAllUsersMode;
                 btnBrowseLogLocation.Enabled = true;

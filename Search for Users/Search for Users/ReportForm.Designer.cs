@@ -18,6 +18,8 @@ namespace Search_for_Users
         private System.Windows.Forms.DataGridViewTextBoxColumn colDisplayName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colMail;
         private System.Windows.Forms.DataGridViewTextBoxColumn colCn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colAccountLocked;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colDomain;
         private System.Windows.Forms.ComboBox cboGenerateOption;
         private System.Windows.Forms.Button btnGenerateInputFile;
         private System.Windows.Forms.Button btnClearSelected;
@@ -56,6 +58,8 @@ namespace Search_for_Users
             colDisplayName = new DataGridViewTextBoxColumn();
             colMail = new DataGridViewTextBoxColumn();
             colCn = new DataGridViewTextBoxColumn();
+            colAccountLocked = new DataGridViewTextBoxColumn();
+            colDomain = new DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)dataGridViewReport).BeginInit();
             SuspendLayout();
             // 
@@ -67,12 +71,12 @@ namespace Search_for_Users
             dataGridViewReport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dataGridViewReport.BackgroundColor = SystemColors.GradientActiveCaption;
             dataGridViewReport.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dataGridViewReport.Columns.AddRange(new DataGridViewColumn[] { colUserId, colUserPartitionID, colName, colSurname, colDisplayName, colMail, colCn });
+            dataGridViewReport.Columns.AddRange(new DataGridViewColumn[] { colUserId, colUserPartitionID, colName, colSurname, colDisplayName, colMail, colCn, colAccountLocked, colDomain });
             dataGridViewReport.Location = new Point(12, 12);
             dataGridViewReport.Name = "dataGridViewReport";
             dataGridViewReport.ReadOnly = true;
             dataGridViewReport.RowHeadersVisible = false;
-            dataGridViewReport.Size = new Size(960, 380);
+            dataGridViewReport.Size = new Size(1256, 400);
             dataGridViewReport.TabIndex = 0;
             // 
             // colUserId
@@ -117,10 +121,22 @@ namespace Search_for_Users
             colCn.Name = "colCn";
             colCn.ReadOnly = true;
             // 
+            // colAccountLocked
+            // 
+            colAccountLocked.HeaderText = "Account Locked";
+            colAccountLocked.Name = "colAccountLocked";
+            colAccountLocked.ReadOnly = true;
+            // 
+            // colDomain
+            // 
+            colDomain.HeaderText = "Domain";
+            colDomain.Name = "colDomain";
+            colDomain.ReadOnly = true;
+            // 
             // btnClose
             // 
             btnClose.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnClose.Location = new Point(872, 408);
+            btnClose.Location = new Point(1152, 428);
             btnClose.Name = "btnClose";
             btnClose.Size = new Size(100, 30);
             btnClose.TabIndex = 1;
@@ -131,7 +147,7 @@ namespace Search_for_Users
             // btnExport
             // 
             btnExport.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnExport.Location = new Point(756, 408);
+            btnExport.Location = new Point(796, 428);
             btnExport.Name = "btnExport";
             btnExport.Size = new Size(100, 30);
             btnExport.TabIndex = 2;
@@ -143,7 +159,7 @@ namespace Search_for_Users
             // 
             lblRecordCount.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblRecordCount.AutoSize = true;
-            lblRecordCount.Location = new Point(12, 416);
+            lblRecordCount.Location = new Point(12, 436);
             lblRecordCount.Name = "lblRecordCount";
             lblRecordCount.Size = new Size(60, 15);
             lblRecordCount.TabIndex = 3;
@@ -154,7 +170,7 @@ namespace Search_for_Users
             cboGenerateOption.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             cboGenerateOption.DropDownStyle = ComboBoxStyle.DropDownList;
             cboGenerateOption.FormattingEnabled = true;
-            cboGenerateOption.Location = new Point(200, 412);
+            cboGenerateOption.Location = new Point(200, 432);
             cboGenerateOption.Name = "cboGenerateOption";
             cboGenerateOption.Size = new Size(150, 23);
             cboGenerateOption.TabIndex = 4;
@@ -164,7 +180,7 @@ namespace Search_for_Users
             // 
             btnGenerateInputFile.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             btnGenerateInputFile.Enabled = false;
-            btnGenerateInputFile.Location = new Point(494, 408);
+            btnGenerateInputFile.Location = new Point(494, 428);
             btnGenerateInputFile.Name = "btnGenerateInputFile";
             btnGenerateInputFile.Size = new Size(130, 30);
             btnGenerateInputFile.TabIndex = 5;
@@ -175,19 +191,21 @@ namespace Search_for_Users
             // btnClearSelected
             // 
             btnClearSelected.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            btnClearSelected.Location = new Point(360, 408);
+            btnClearSelected.Location = new Point(360, 428);
             btnClearSelected.Name = "btnClearSelected";
             btnClearSelected.Size = new Size(130, 30);
             btnClearSelected.TabIndex = 6;
             btnClearSelected.Text = "Clear Selected";
             btnClearSelected.UseVisualStyleBackColor = true;
             btnClearSelected.Click += btnClearSelected_Click;
+            btnClearSelected.Visible = false;
+            
             // 
             // ReportForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(984, 450);
+            ClientSize = new Size(1280, 480);
             Controls.Add(btnClearSelected);
             Controls.Add(btnGenerateInputFile);
             Controls.Add(cboGenerateOption);
@@ -196,7 +214,7 @@ namespace Search_for_Users
             Controls.Add(btnClose);
             Controls.Add(dataGridViewReport);
             BackColor = SystemColors.GradientActiveCaption;
-            MinimumSize = new Size(800, 300);
+            MinimumSize = new Size(1280, 400);
             Name = "ReportForm";
             StartPosition = FormStartPosition.CenterParent;
             Text = "Report";
