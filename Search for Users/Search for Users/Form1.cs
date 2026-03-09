@@ -78,6 +78,13 @@ namespace Search_for_Users
                 labelMessage.ForeColor = System.Drawing.Color.Green;
                 labelMessage.Text = "Login Successful";
 
+                MessageBox.Show(
+                "You have been successfully logged in, click OK to continue",
+                "",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+                );
+
                 // Navigate to the action selection screen after a successful login.
                 var actionForm = new ActionSelectionForm(this);
                 actionForm.Show();
@@ -178,6 +185,12 @@ namespace Search_for_Users
             catch
             {
                 // Any exception (network error, timeout, etc.) is treated as an unsuccessful login.
+                MessageBox.Show(
+                "Error connecting to OTDS server.",
+                "Please check your network!!",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
+                );
                 return false;
             }
         }

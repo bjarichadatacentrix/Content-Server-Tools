@@ -22,7 +22,7 @@ namespace Search_for_Users
         // Filter controls for Search for Users
         private Panel? _filterPanel;
         private TextBox? _filterUserId;
-        private TextBox? _filterPartition;
+        private ComboBox? _filterPartition;
         private TextBox? _filterName;
         private TextBox? _filterSurname;
         private TextBox? _filterDisplayName;
@@ -33,6 +33,10 @@ namespace Search_for_Users
         
         // Store original data for filtering
         private List<UserRecord>? _allUsers;
+
+        // Protect selection on Edit Data: only Clear Screen clears it; clicking to edit does not reduce selection
+        private HashSet<int> _protectedSelectionIndices = new HashSet<int>();
+        private bool _isUpdatingSelection;
 
         /// <summary>
         /// Creates the report form with the specified log file and title.
@@ -70,6 +74,7 @@ namespace Search_for_Users
             if (_enableFiltering && _selectedAction == ContentServerAction.SearchForUsers)
             {
                 AddFilterControls();
+                PopulatePartitionFilter(); // Fill partition dropdown from report data (after combo exists)
             }
 
             // Clear any default row selection when form is shown, so Filter only selects matching rows
@@ -171,22 +176,30 @@ namespace Search_for_Users
         }
 
         /// <summary>
-        /// Clears all currently highlighted rows/cells in the grid.
+        /// Clears all currently highlighted rows/cells in the grid (same as Clear Screen for Edit Data).
         /// </summary>
         private void btnClearSelected_Click(object? sender, EventArgs e)
         {
+            _isUpdatingSelection = true;
+            _protectedSelectionIndices.Clear();
             dataGridViewReport.ClearSelection();
+            dataGridViewReport.CurrentCell = null;
+            _isUpdatingSelection = false;
             if (_enableFiltering)
                 UpdateRecordCountLabel();
         }
 
         /// <summary>
         /// Clears the screen of any selected rows (clears grid selection).
+        /// This is the only way to clear the "held" selection for export.
         /// </summary>
         private void btnClearScreen_Click(object? sender, EventArgs e)
         {
+            _isUpdatingSelection = true;
+            _protectedSelectionIndices.Clear();
             dataGridViewReport.ClearSelection();
             dataGridViewReport.CurrentCell = null;
+            _isUpdatingSelection = false;
             if (_enableFiltering)
                 UpdateRecordCountLabel();
         }
@@ -413,6 +426,7 @@ namespace Search_for_Users
                 if (_enableFiltering)
                 {
                     _allUsers = users;
+                    PopulatePartitionFilter();
                 }
 
                 // Populate the DataGridView with extracted data.
@@ -477,7 +491,7 @@ namespace Search_for_Users
             var spacing = 130;
 
             _filterUserId = CreateFilterTextBox("User ID", startX, spacing * 0);
-            _filterPartition = CreateFilterTextBox("Partition", startX, spacing * 1);
+            _filterPartition = CreatePartitionFilterComboBox(startX, spacing * 1);
             _filterName = CreateFilterTextBox("Name", startX, spacing * 2);
             _filterSurname = CreateFilterTextBox("Surname", startX, spacing * 3);
             _filterDisplayName = CreateFilterTextBox("Display Name", startX, spacing * 4);
@@ -530,8 +544,68 @@ namespace Search_for_Users
             dataGridViewReport.Top += 70;
             dataGridViewReport.Height -= 70;
 
-            // Update "Selected" count when user changes selection (e.g. Clear Selected)
-            dataGridViewReport.SelectionChanged += (s, _) => UpdateRecordCountLabel();
+            // Protect selection: only Clear Screen clears it; clicking to edit keeps the held rows selected
+            dataGridViewReport.SelectionChanged += DataGridViewReport_SelectionChangedProtected;
+        }
+
+        /// <summary>
+        /// Keeps the "held" selection when user clicks a cell to edit; only Clear Screen clears all.
+        /// Ctrl+click on a selected row unselects it; Ctrl+click on an unselected row selects it.
+        /// </summary>
+        private void DataGridViewReport_SelectionChangedProtected(object? sender, EventArgs e)
+        {
+            if (!_enableFiltering || _allUsers == null) return;
+
+            if (_isUpdatingSelection)
+            {
+                _isUpdatingSelection = false;
+                UpdateRecordCountLabel();
+                return;
+            }
+
+            var current = new HashSet<int>(
+                dataGridViewReport.SelectedRows.Cast<DataGridViewRow>()
+                    .Where(r => !r.IsNewRow && r.Index >= 0)
+                    .Select(r => r.Index));
+
+            // User expanded selection (Ctrl+click to add): remember as new protected set
+            if (current.Count >= _protectedSelectionIndices.Count && _protectedSelectionIndices.Count > 0 && current.IsSupersetOf(_protectedSelectionIndices))
+            {
+                _protectedSelectionIndices = new HashSet<int>(current);
+                UpdateRecordCountLabel();
+                return;
+            }
+
+            // User reduced selection: either Ctrl+click to deselect (subset, multiple or fewer rows) or single-click to edit (single row)
+            if (_protectedSelectionIndices.Count > 0 && current.Count < _protectedSelectionIndices.Count)
+            {
+                bool singleRowClick = current.Count == 1 && _protectedSelectionIndices.Count > 1;
+                bool ctrlDeselect = current.IsSubsetOf(_protectedSelectionIndices) && !singleRowClick;
+
+                if (ctrlDeselect)
+                {
+                    // Ctrl+click on selected row(s) to unselect: accept the new selection
+                    _protectedSelectionIndices = new HashSet<int>(current);
+                }
+                else
+                {
+                    // Single-click to edit: restore full selection and keep focus on clicked cell
+                    _isUpdatingSelection = true;
+                    var currentCell = dataGridViewReport.CurrentCell;
+                    foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                    {
+                        if (row.IsNewRow) continue;
+                        row.Selected = _protectedSelectionIndices.Contains(row.Index);
+                    }
+                    if (currentCell != null)
+                        dataGridViewReport.CurrentCell = currentCell;
+                    _isUpdatingSelection = false;
+                }
+            }
+            else if (current.Count > 0)
+                _protectedSelectionIndices = new HashSet<int>(current);
+
+            UpdateRecordCountLabel();
         }
 
         /// <summary>
@@ -561,28 +635,78 @@ namespace Search_for_Users
         }
 
         /// <summary>
+        /// Creates the partition filter dropdown with "All" as default. Call PopulatePartitionFilter() after loading user data.
+        /// </summary>
+        private ComboBox CreatePartitionFilterComboBox(int baseX, int offsetX)
+        {
+            var combo = new ComboBox
+            {
+                Location = new Point(baseX + offsetX, 27),
+                Size = new Size(120, 23),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            combo.Items.Add("All");
+            combo.SelectedIndex = 0;
+            combo.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    BtnFilter_Click(s, e);
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+            };
+            return combo;
+        }
+
+        /// <summary>
+        /// Fills the partition filter dropdown with "All" plus unique partitions from the current report data.
+        /// </summary>
+        private void PopulatePartitionFilter()
+        {
+            if (_filterPartition == null || _allUsers == null) return;
+            var selected = _filterPartition.SelectedItem?.ToString();
+            _filterPartition.Items.Clear();
+            _filterPartition.Items.Add("All");
+            var partitions = _allUsers
+                .Select(u => u.UserPartitionID)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            foreach (var p in partitions)
+                _filterPartition.Items.Add(p);
+            if (!string.IsNullOrEmpty(selected) && _filterPartition.Items.Contains(selected))
+                _filterPartition.SelectedItem = selected;
+            else
+                _filterPartition.SelectedIndex = 0;
+        }
+
+        /// <summary>
         /// Checks whether a cell value matches a filter string.
         /// Supports special keywords: &lt;empty&gt; matches blank values,
         /// &lt;not empty&gt; matches non-blank values.
         /// An empty filter matches everything.
         /// </summary>
-        private static bool MatchesFilter(string value, string filter)
+        private static bool MatchesFilter(string? value, string filter)
         {
             if (string.IsNullOrEmpty(filter))
                 return true;
 
+            var v = value ?? string.Empty;
+
             if (filter.Equals("<empty>", StringComparison.OrdinalIgnoreCase))
-                return string.IsNullOrWhiteSpace(value);
+                return string.IsNullOrWhiteSpace(v);
 
             if (filter.Equals("<not empty>", StringComparison.OrdinalIgnoreCase))
-                return !string.IsNullOrWhiteSpace(value);
+                return !string.IsNullOrWhiteSpace(v);
 
-            return value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+            return v.Contains(filter, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
-        /// Applies filters and adds matching rows to the current selection (cumulative "hold").
-        /// Grid always shows all data; selection accumulates across multiple filter runs.
+        /// Applies filters: adds rows that match ANY of the non-empty criteria to the current selection (hold).
+        /// Selection is cumulative across filter runs; use Clear Screen to clear selection.
         /// Supports special keywords: &lt;empty&gt; and &lt;not empty&gt;.
         /// </summary>
         private void BtnFilter_Click(object? sender, EventArgs e)
@@ -590,30 +714,46 @@ namespace Search_for_Users
             if (_allUsers == null) return;
 
             var filterUserId = _filterUserId?.Text?.Trim() ?? string.Empty;
-            var filterPartition = _filterPartition?.Text?.Trim() ?? string.Empty;
+            var filterPartition = _filterPartition?.SelectedItem?.ToString()?.Trim() ?? string.Empty;
             var filterName = _filterName?.Text?.Trim() ?? string.Empty;
             var filterSurname = _filterSurname?.Text?.Trim() ?? string.Empty;
             var filterDisplayName = _filterDisplayName?.Text?.Trim() ?? string.Empty;
             var filterMail = _filterMail?.Text?.Trim() ?? string.Empty;
             var filterCn = _filterCn?.Text?.Trim() ?? string.Empty;
 
-            // Row index i in the grid corresponds to _allUsers[i] (grid is populated in that order).
+            // Do not clear selection: add matching rows to current selection (cumulative hold).
+
+            var partitionIsAll = string.IsNullOrEmpty(filterPartition) || filterPartition.Equals("All", StringComparison.OrdinalIgnoreCase);
+            var anyTextFilter = !string.IsNullOrEmpty(filterUserId) || !string.IsNullOrEmpty(filterName) ||
+                                !string.IsNullOrEmpty(filterSurname) || !string.IsNullOrEmpty(filterDisplayName) ||
+                                !string.IsNullOrEmpty(filterMail) || !string.IsNullOrEmpty(filterCn);
+
+            // When partition is "All" and no other filters, select all rows. Otherwise use OR logic.
+            var selectAllPartitions = partitionIsAll && !anyTextFilter;
+
+            _isUpdatingSelection = true;
             for (var i = 0; i < _allUsers.Count && i < dataGridViewReport.Rows.Count; i++)
             {
                 var u = _allUsers[i];
-                var matches =
-                    MatchesFilter(u.UserId, filterUserId) &&
-                    MatchesFilter(u.UserPartitionID, filterPartition) &&
-                    MatchesFilter(u.Name, filterName) &&
-                    MatchesFilter(u.Surname, filterSurname) &&
-                    MatchesFilter(u.DisplayName, filterDisplayName) &&
-                    MatchesFilter(u.Mail, filterMail) &&
-                    MatchesFilter(u.Cn, filterCn);
+                var partitionMatch = !partitionIsAll && MatchesFilter(u.UserPartitionID, filterPartition);
+                var matches = selectAllPartitions ||
+                    (!string.IsNullOrEmpty(filterUserId) && MatchesFilter(u.UserId, filterUserId)) ||
+                    partitionMatch ||
+                    (!string.IsNullOrEmpty(filterName) && MatchesFilter(u.Name, filterName)) ||
+                    (!string.IsNullOrEmpty(filterSurname) && MatchesFilter(u.Surname, filterSurname)) ||
+                    (!string.IsNullOrEmpty(filterDisplayName) && MatchesFilter(u.DisplayName, filterDisplayName)) ||
+                    (!string.IsNullOrEmpty(filterMail) && MatchesFilter(u.Mail, filterMail)) ||
+                    (!string.IsNullOrEmpty(filterCn) && MatchesFilter(u.Cn, filterCn));
                 if (matches && !dataGridViewReport.Rows[i].IsNewRow)
                 {
                     dataGridViewReport.Rows[i].Selected = true;
                 }
             }
+            _protectedSelectionIndices = new HashSet<int>(
+                dataGridViewReport.SelectedRows.Cast<DataGridViewRow>()
+                    .Where(r => !r.IsNewRow && r.Index >= 0)
+                    .Select(r => r.Index));
+            _isUpdatingSelection = false;
 
             UpdateRecordCountLabel();
         }
@@ -625,7 +765,7 @@ namespace Search_for_Users
         private void BtnClearFilter_Click(object? sender, EventArgs e)
         {
             if (_filterUserId != null) _filterUserId.Text = string.Empty;
-            if (_filterPartition != null) _filterPartition.Text = string.Empty;
+            if (_filterPartition != null && _filterPartition.Items.Count > 0) _filterPartition.SelectedIndex = 0; // "All"
             if (_filterName != null) _filterName.Text = string.Empty;
             if (_filterSurname != null) _filterSurname.Text = string.Empty;
             if (_filterDisplayName != null) _filterDisplayName.Text = string.Empty;
