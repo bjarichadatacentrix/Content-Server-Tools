@@ -76,7 +76,7 @@ namespace Search_for_Users
             dataGridViewReport.Name = "dataGridViewReport";
             dataGridViewReport.ReadOnly = true;
             dataGridViewReport.RowHeadersVisible = false;
-            dataGridViewReport.Size = new Size(1256, 400);
+            dataGridViewReport.Size = new Size(1350, 400);
             dataGridViewReport.TabIndex = 0;
             // 
             // colUserId
@@ -205,7 +205,7 @@ namespace Search_for_Users
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1280, 480);
+            ClientSize = new Size(1350, 480);
             Controls.Add(btnClearSelected);
             Controls.Add(btnGenerateInputFile);
             Controls.Add(cboGenerateOption);

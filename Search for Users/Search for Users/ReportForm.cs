@@ -190,6 +190,65 @@ namespace Search_for_Users
         }
 
         /// <summary>
+        /// Moves all selected rows to the top of the grid; keeps selection unchanged.
+        /// </summary>
+        private void BtnSortData_Click(object? sender, EventArgs e)
+        {
+            if (!_enableFiltering || _allUsers == null || _selectedAction != ContentServerAction.SearchForUsers) return;
+
+            var selectedIndices = new HashSet<int>(
+                dataGridViewReport.SelectedRows.Cast<DataGridViewRow>()
+                    .Where(r => !r.IsNewRow && r.Index >= 0 && r.Index < _allUsers.Count)
+                    .Select(r => r.Index));
+
+            if (selectedIndices.Count == 0) return;
+
+            var selectedRecords = new List<UserRecord>();
+            var unselectedRecords = new List<UserRecord>();
+            for (var i = 0; i < _allUsers.Count; i++)
+            {
+                if (selectedIndices.Contains(i))
+                    selectedRecords.Add(_allUsers[i]);
+                else
+                    unselectedRecords.Add(_allUsers[i]);
+            }
+
+            var newOrder = new List<UserRecord>(selectedRecords);
+            newOrder.AddRange(unselectedRecords);
+            _allUsers = newOrder;
+
+            _isUpdatingSelection = true;
+            // Remove all rows so data starts directly under headers (avoid empty row at top)
+            var wasAllowAdd = dataGridViewReport.AllowUserToAddRows;
+            dataGridViewReport.AllowUserToAddRows = false;
+            while (dataGridViewReport.Rows.Count > 0)
+                dataGridViewReport.Rows.RemoveAt(dataGridViewReport.Rows.Count - 1);
+            foreach (var user in _allUsers)
+            {
+                dataGridViewReport.Rows.Add(
+                    user.UserId,
+                    user.UserPartitionID,
+                    user.Name,
+                    user.Surname,
+                    user.DisplayName,
+                    user.Mail,
+                    user.Cn,
+                    user.AccountLocked,
+                    user.Domain);
+            }
+            dataGridViewReport.AllowUserToAddRows = wasAllowAdd;
+            var count = selectedRecords.Count;
+            for (var i = 0; i < count && i < dataGridViewReport.Rows.Count; i++)
+            {
+                if (!dataGridViewReport.Rows[i].IsNewRow)
+                    dataGridViewReport.Rows[i].Selected = true;
+            }
+            _protectedSelectionIndices = new HashSet<int>(Enumerable.Range(0, count));
+            _isUpdatingSelection = false;
+            UpdateRecordCountLabel();
+        }
+
+        /// <summary>
         /// Clears the screen of any selected rows (clears grid selection).
         /// This is the only way to clear the "held" selection for export.
         /// </summary>
@@ -511,7 +570,10 @@ namespace Search_for_Users
             {
                 Text = "Filter",
                 Location = new Point(startX + spacing * 7, 25),
-                Size = new Size(70, 25)
+                Size = new Size(70, 25),
+                BackColor = Color.Green,
+                ForeColor = Color.White,
+                UseVisualStyleBackColor = false
             };
             _btnFilter.Click += BtnFilter_Click;
             _filterPanel.Controls.Add(_btnFilter);
@@ -521,7 +583,10 @@ namespace Search_for_Users
             {
                 Text = "Clear Filter",
                 Location = new Point(startX + spacing * 7 + 75, 25),
-                Size = new Size(80, 25)
+                Size = new Size(80, 25),
+                BackColor = Color.Yellow,
+                ForeColor = Color.Black,
+                UseVisualStyleBackColor = false
             };
             _btnClearFilter.Click += BtnClearFilter_Click;
             _filterPanel.Controls.Add(_btnClearFilter);
@@ -531,10 +596,26 @@ namespace Search_for_Users
             {
                 Text = "Clear Screen",
                 Location = new Point(startX + spacing * 7 + 75 + 90, 25),
-                Size = new Size(90, 25)
+                Size = new Size(90, 25),
+                BackColor = Color.BlueViolet,
+                ForeColor = Color.White,
+                UseVisualStyleBackColor = false
             };
             btnClearScreen.Click += btnClearScreen_Click;
             _filterPanel.Controls.Add(btnClearScreen);
+
+            // Create Sort Data button (moves selected rows to top)
+            var btnSortData = new Button
+            {
+                Text = "Sort Data",
+                Location = new Point(startX + spacing * 7 + 75 + 90 + 95, 25),
+                Size = new Size(80, 25),
+                BackColor = Color.Purple,
+                ForeColor = Color.White,
+                UseVisualStyleBackColor = false
+            };
+            btnSortData.Click += BtnSortData_Click;
+            _filterPanel.Controls.Add(btnSortData);
 
             // Add panel to form (above DataGridView)
             this.Controls.Add(_filterPanel);

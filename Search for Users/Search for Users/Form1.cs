@@ -45,13 +45,13 @@ namespace Search_for_Users
             //If it’s not null → use the trimmed value
 
 
-            //var url = txtUrl.Text?.Trim() ?? string.Empty;
-            //var username = txtUsername.Text?.Trim() ?? string.Empty;
-            //var password = txtPassword.Text ?? string.Empty;
+            var url = txtUrl.Text?.Trim() ?? string.Empty;
+            var username = txtUsername.Text?.Trim() ?? string.Empty;
+            var password = txtPassword.Text ?? string.Empty;
 
-            var url = "http://dbscs.dcxeim.local:8080/otdsws/rest/authentication/credentials";
-            var username = "otadmin@otds.admin";
-            var password = "P@$$w0rd!";
+           // var url = "http://dbscs.dcxeim.local:8080/otdsws/rest/authentication/credentials";
+          //  var username = "otadmin@otds.admin";
+          //  var password = "P@$$w0rd!";
 
 
 
@@ -62,6 +62,12 @@ namespace Search_for_Users
                 string.IsNullOrWhiteSpace(password))
             {
                 labelMessage.Text = "Please enter URL, Username and Password.";
+                MessageBox.Show(
+                "Please enter URL, Username and Password.",
+                "",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning
+                );
                 return;
             }
 
