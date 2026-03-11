@@ -112,6 +112,18 @@ namespace Search_for_Users
 
             ConfigurePartitionDropdown();
             UpdateErrorLogColor();
+            LoadLastLogFolder();
+        }
+
+        /// <summary>
+        /// Restores the last saved log folder so the user doesn't have to select it again.
+        /// </summary>
+        private void LoadLastLogFolder()
+        {
+            var saved = UserSettings.GetLastLogFolder();
+            if (string.IsNullOrEmpty(saved)) return;
+            _logFolder = saved;
+            txtLogLocation.Text = saved;
         }
 
         /// <summary>
@@ -338,6 +350,7 @@ namespace Search_for_Users
             {
                 _logFolder = dialog.SelectedPath;
                 txtLogLocation.Text = _logFolder;
+                UserSettings.SetLastLogFolder(_logFolder);
             }
         }
 

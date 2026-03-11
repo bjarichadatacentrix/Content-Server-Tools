@@ -38,6 +38,12 @@ namespace Search_for_Users
         private HashSet<int> _protectedSelectionIndices = new HashSet<int>();
         private bool _isUpdatingSelection;
 
+        /// <summary>True when report shows user grid and uses the same Edit Data behavior (Search for Users, Search User by ID, Create User, Update User).</summary>
+        private bool IsUserSearchReport => _selectedAction == ContentServerAction.SearchForUsers
+            || _selectedAction == ContentServerAction.SearchUserById
+            || _selectedAction == ContentServerAction.CreateUser
+            || _selectedAction == ContentServerAction.UpdateUser;
+
         /// <summary>
         /// Creates the report form with the specified log file and title.
         /// </summary>
@@ -71,14 +77,14 @@ namespace Search_for_Users
             }
             
             // Add filter UI if filtering is enabled for supported actions
-            if (_enableFiltering && _selectedAction == ContentServerAction.SearchForUsers)
+            if (_enableFiltering && IsUserSearchReport)
             {
                 AddFilterControls();
                 PopulatePartitionFilter(); // Fill partition dropdown from report data (after combo exists)
             }
 
             // Clear any default row selection when form is shown, so Filter only selects matching rows
-            if (_enableFiltering && _selectedAction == ContentServerAction.SearchForUsers)
+            if (_enableFiltering && IsUserSearchReport)
             {
                 Shown += ReportForm_Shown;
             }
@@ -87,7 +93,7 @@ namespace Search_for_Users
         private void ReportForm_Shown(object? sender, EventArgs e)
         {
             Shown -= ReportForm_Shown;
-            if (_enableFiltering && _selectedAction == ContentServerAction.SearchForUsers)
+            if (_enableFiltering && IsUserSearchReport)
             {
                 dataGridViewReport.ClearSelection();
                 dataGridViewReport.CurrentCell = null;
@@ -104,9 +110,10 @@ namespace Search_for_Users
             cboGenerateOption.Items.Clear();
             cboGenerateOption.Items.Add("Select Option");
 
-            if (_selectedAction == ContentServerAction.SearchForUsers)
+            if (IsUserSearchReport)
             {
                 cboGenerateOption.Items.Add("Update Users");
+                cboGenerateOption.Items.Add("Delete User");
             }
             else if (_selectedAction == ContentServerAction.SearchGroups)
             {
@@ -129,7 +136,7 @@ namespace Search_for_Users
         {
             dataGridViewReport.ReadOnly = false;
 
-            if (_selectedAction == ContentServerAction.SearchForUsers)
+            if (IsUserSearchReport)
             {
                 foreach (DataGridViewColumn col in dataGridViewReport.Columns)
                 {
@@ -169,6 +176,10 @@ namespace Search_for_Users
             {
                 GenerateUpdateUsersCsv();
             }
+            else if (selectedOption == "Delete User")
+            {
+                GenerateDeleteUsersCsv();
+            }
             else if (selectedOption == "Update Groups")
             {
                 GenerateUpdateGroupsCsv();
@@ -194,7 +205,7 @@ namespace Search_for_Users
         /// </summary>
         private void BtnSortData_Click(object? sender, EventArgs e)
         {
-            if (!_enableFiltering || _allUsers == null || _selectedAction != ContentServerAction.SearchForUsers) return;
+            if (!_enableFiltering || _allUsers == null || !IsUserSearchReport) return;
 
             var selectedIndices = new HashSet<int>(
                 dataGridViewReport.SelectedRows.Cast<DataGridViewRow>()
@@ -302,6 +313,51 @@ namespace Search_for_Users
 
                 MessageBox.Show(
                     $"Update Users input file saved to:\n{dialog.FileName}",
+                    "File Generated",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error generating file: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Generates a CSV file for the "Delete User" action.
+        /// Contains only header "user_id" and one column with user IDs from selected rows.
+        /// </summary>
+        private void GenerateDeleteUsersCsv()
+        {
+            using var dialog = new SaveFileDialog
+            {
+                Title = "Generate Delete Users Input File",
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                DefaultExt = "csv",
+                FileName = $"delete_users_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+            };
+
+            if (dialog.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                var rows = GetRowsForExport();
+                using var writer = new StreamWriter(dialog.FileName, false, Encoding.UTF8);
+
+                writer.WriteLine("user_id");
+
+                foreach (var row in rows)
+                {
+                    var userId = EscapeCsvField(row.Cells[0].Value?.ToString() ?? string.Empty);
+                    writer.WriteLine(userId);
+                }
+
+                MessageBox.Show(
+                    $"Delete Users input file saved to:\n{dialog.FileName}",
                     "File Generated",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
