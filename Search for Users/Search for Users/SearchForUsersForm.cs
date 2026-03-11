@@ -630,7 +630,7 @@ namespace Search_for_Users
 
                 // Create log and error log file names based on the CSV file name.
                 var fileNameWithoutExt = Path.GetFileNameWithoutExtension(csvPath);
-                var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmm");
+                var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmmss");
 
                 var infoLogPath = Path.Combine(_logFolder!, $"{fileNameWithoutExt}_{timestamp}.log");
                 var errorLogPath = Path.Combine(_logFolder!, $"{fileNameWithoutExt}_{timestamp}_error.log");
@@ -707,7 +707,7 @@ namespace Search_for_Users
                 ? $"Fetching users for partition(s) '{partitionDescription}'..."
                 : "Fetching all users...";
 
-            var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmm");
+            var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmmss");
             var infoLogPath = Path.Combine(_logFolder!, $"all_users_{timestamp}.log");
             var errorLogPath = Path.Combine(_logFolder!, $"all_users_{timestamp}_error.log");
 
@@ -889,7 +889,7 @@ namespace Search_for_Users
         {
             txtCurrentFile.Text = "Fetching all groups...";
 
-            var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmm");
+            var timestamp = DateTime.Now.ToString("ddMMyyyy_HHmmss");
             var infoLogPath = Path.Combine(_logFolder!, $"all_groups_{timestamp}.log");
             var errorLogPath = Path.Combine(_logFolder!, $"all_groups_{timestamp}_error.log");
 

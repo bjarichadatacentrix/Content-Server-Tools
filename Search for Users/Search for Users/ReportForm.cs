@@ -693,9 +693,9 @@ namespace Search_for_Users
         {
             if (!_enableFiltering || _allUsers == null) return;
 
+            // Re-entrant call while we're programmatically restoring selection; don't clear the flag here
             if (_isUpdatingSelection)
             {
-                _isUpdatingSelection = false;
                 UpdateRecordCountLabel();
                 return;
             }
@@ -726,17 +726,29 @@ namespace Search_for_Users
                 }
                 else
                 {
-                    // Single-click to edit: restore full selection and keep focus on clicked cell
-                    _isUpdatingSelection = true;
-                    var currentCell = dataGridViewReport.CurrentCell;
-                    foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                    // Single-click to edit: restore full selection and keep focus on clicked cell (defer to avoid re-entrant SelectionChanged)
+                    var indicesToRestore = new HashSet<int>(_protectedSelectionIndices);
+                    var cellToRestore = dataGridViewReport.CurrentCell;
+                    BeginInvoke(() =>
                     {
-                        if (row.IsNewRow) continue;
-                        row.Selected = _protectedSelectionIndices.Contains(row.Index);
-                    }
-                    if (currentCell != null)
-                        dataGridViewReport.CurrentCell = currentCell;
-                    _isUpdatingSelection = false;
+                        _isUpdatingSelection = true;
+                        try
+                        {
+                            foreach (DataGridViewRow row in dataGridViewReport.Rows)
+                            {
+                                if (row.IsNewRow) continue;
+                                row.Selected = indicesToRestore.Contains(row.Index);
+                            }
+                            if (cellToRestore != null && cellToRestore.RowIndex >= 0 && cellToRestore.RowIndex < dataGridViewReport.Rows.Count)
+                                dataGridViewReport.CurrentCell = dataGridViewReport[cellToRestore.ColumnIndex, cellToRestore.RowIndex];
+                        }
+                        finally
+                        {
+                            _isUpdatingSelection = false;
+                        }
+                        UpdateRecordCountLabel();
+                    });
+                    return;
                 }
             }
             else if (current.Count > 0)

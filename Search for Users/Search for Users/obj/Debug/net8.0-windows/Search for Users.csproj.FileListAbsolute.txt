@@ -1,8 +1,12 @@
+C:\Users\bjari\source\repos\Search for Users\Search for Users\bin\Debug\net8.0-windows\Search for Users.exe
 C:\Users\bjari\source\repos\Search for Users\Search for Users\bin\Debug\net8.0-windows\Search for Users.deps.json
 C:\Users\bjari\source\repos\Search for Users\Search for Users\bin\Debug\net8.0-windows\Search for Users.runtimeconfig.json
 C:\Users\bjari\source\repos\Search for Users\Search for Users\bin\Debug\net8.0-windows\Search for Users.dll
 C:\Users\bjari\source\repos\Search for Users\Search for Users\bin\Debug\net8.0-windows\Search for Users.pdb
+C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.ActionSelectionForm.resources
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.Form1.resources
+C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.Properties.Resources.resources
+C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.SearchForUsersForm.resources
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search for Users.csproj.GenerateResource.cache
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search for Users.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search for Users.AssemblyInfoInputs.cache
@@ -14,7 +18,3 @@ C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-w
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search for Users.pdb
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search for Users.genruntimeconfig.cache
 C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\ref\Search for Users.dll
-C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.ActionSelectionForm.resources
-C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.SearchForUsersForm.resources
-C:\Users\bjari\source\repos\Search for Users\Search for Users\obj\Debug\net8.0-windows\Search_for_Users.Properties.Resources.resources
-C:\Users\bjari\source\repos\Search for Users\Search for Users\bin\Debug\net8.0-windows\Search for Users.exe
