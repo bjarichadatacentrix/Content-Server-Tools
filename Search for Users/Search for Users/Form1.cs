@@ -98,6 +98,14 @@ namespace Search_for_Users
             }
             else
             {
+                labelMessage.Text = "Username, Password and URL mismatch";
+                MessageBox.Show(
+                "Please check your username, password, URL and try again.",
+                "",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning
+                );
+                //return;
                 labelMessage.ForeColor = System.Drawing.Color.Red;
                 labelMessage.Text = "Login Unsuccessful";
             }
