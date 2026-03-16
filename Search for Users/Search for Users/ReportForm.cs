@@ -30,9 +30,15 @@ namespace Search_for_Users
         private TextBox? _filterCn;
         private Button? _btnFilter;
         private Button? _btnClearFilter;
+
+        // Filter controls for Search Groups
+        private TextBox? _filterGroupId;
+        private TextBox? _filterGroupName;
+        private TextBox? _filterGroupDateCreated;
         
         // Store original data for filtering
         private List<UserRecord>? _allUsers;
+        private List<GroupRecord>? _allGroups;
 
         // Protect selection on Edit Data: only Clear Screen clears it; clicking to edit does not reduce selection
         private HashSet<int> _protectedSelectionIndices = new HashSet<int>();
@@ -43,6 +49,9 @@ namespace Search_for_Users
             || _selectedAction == ContentServerAction.SearchUserById
             || _selectedAction == ContentServerAction.CreateUser
             || _selectedAction == ContentServerAction.UpdateUser;
+
+        /// <summary>True when report shows the Search Groups grid with Group ID, Group Name, Date Created.</summary>
+        private bool IsGroupSearchReport => _selectedAction == ContentServerAction.SearchGroups;
 
         /// <summary>
         /// Creates the report form with the specified log file and title.
@@ -82,9 +91,13 @@ namespace Search_for_Users
                 AddFilterControls();
                 PopulatePartitionFilter(); // Fill partition dropdown from report data (after combo exists)
             }
+            else if (_enableFiltering && IsGroupSearchReport)
+            {
+                AddGroupFilterControls();
+            }
 
             // Clear any default row selection when form is shown, so Filter only selects matching rows
-            if (_enableFiltering && IsUserSearchReport)
+            if (_enableFiltering && (IsUserSearchReport || IsGroupSearchReport))
             {
                 Shown += ReportForm_Shown;
             }
@@ -93,7 +106,7 @@ namespace Search_for_Users
         private void ReportForm_Shown(object? sender, EventArgs e)
         {
             Shown -= ReportForm_Shown;
-            if (_enableFiltering && IsUserSearchReport)
+            if (_enableFiltering && (IsUserSearchReport || IsGroupSearchReport))
             {
                 dataGridViewReport.ClearSelection();
                 dataGridViewReport.CurrentCell = null;
@@ -118,6 +131,7 @@ namespace Search_for_Users
             else if (_selectedAction == ContentServerAction.SearchGroups)
             {
                 cboGenerateOption.Items.Add("Update Groups");
+                cboGenerateOption.Items.Add("Delete Group");
             }
 
             cboGenerateOption.SelectedIndex = 0;
@@ -184,6 +198,10 @@ namespace Search_for_Users
             {
                 GenerateUpdateGroupsCsv();
             }
+            else if (selectedOption == "Delete Group")
+            {
+                GenerateDeleteGroupsCsv();
+            }
         }
 
         /// <summary>
@@ -202,61 +220,102 @@ namespace Search_for_Users
 
         /// <summary>
         /// Moves all selected rows to the top of the grid; keeps selection unchanged.
+        /// Supports both user and group reports.
         /// </summary>
         private void BtnSortData_Click(object? sender, EventArgs e)
         {
-            if (!_enableFiltering || _allUsers == null || !IsUserSearchReport) return;
+            if (!_enableFiltering) return;
 
+            // Collect currently selected row indices in grid order
             var selectedIndices = new HashSet<int>(
                 dataGridViewReport.SelectedRows.Cast<DataGridViewRow>()
-                    .Where(r => !r.IsNewRow && r.Index >= 0 && r.Index < _allUsers.Count)
+                    .Where(r => !r.IsNewRow && r.Index >= 0)
                     .Select(r => r.Index));
 
             if (selectedIndices.Count == 0) return;
 
-            var selectedRecords = new List<UserRecord>();
-            var unselectedRecords = new List<UserRecord>();
-            for (var i = 0; i < _allUsers.Count; i++)
+            if (IsUserSearchReport && _allUsers != null)
             {
-                if (selectedIndices.Contains(i))
-                    selectedRecords.Add(_allUsers[i]);
-                else
-                    unselectedRecords.Add(_allUsers[i]);
-            }
+                var selectedRecords = new List<UserRecord>();
+                var unselectedRecords = new List<UserRecord>();
+                for (var i = 0; i < _allUsers.Count; i++)
+                {
+                    if (selectedIndices.Contains(i))
+                        selectedRecords.Add(_allUsers[i]);
+                    else
+                        unselectedRecords.Add(_allUsers[i]);
+                }
 
-            var newOrder = new List<UserRecord>(selectedRecords);
-            newOrder.AddRange(unselectedRecords);
-            _allUsers = newOrder;
+                var newOrder = new List<UserRecord>(selectedRecords);
+                newOrder.AddRange(unselectedRecords);
+                _allUsers = newOrder;
 
-            _isUpdatingSelection = true;
-            // Remove all rows so data starts directly under headers (avoid empty row at top)
-            var wasAllowAdd = dataGridViewReport.AllowUserToAddRows;
-            dataGridViewReport.AllowUserToAddRows = false;
-            while (dataGridViewReport.Rows.Count > 0)
-                dataGridViewReport.Rows.RemoveAt(dataGridViewReport.Rows.Count - 1);
-            foreach (var user in _allUsers)
-            {
-                dataGridViewReport.Rows.Add(
-                    user.UserId,
-                    user.UserPartitionID,
-                    user.Name,
-                    user.Surname,
-                    user.DisplayName,
-                    user.Mail,
-                    user.Cn,
-                    user.AccountLocked,
-                    user.Domain);
+                _isUpdatingSelection = true;
+                // Remove all rows so data starts directly under headers (avoid empty row at top)
+                var wasAllowAdd = dataGridViewReport.AllowUserToAddRows;
+                dataGridViewReport.AllowUserToAddRows = false;
+                while (dataGridViewReport.Rows.Count > 0)
+                    dataGridViewReport.Rows.RemoveAt(dataGridViewReport.Rows.Count - 1);
+                foreach (var user in _allUsers)
+                {
+                    dataGridViewReport.Rows.Add(
+                        user.UserId,
+                        user.UserPartitionID,
+                        user.Name,
+                        user.Surname,
+                        user.DisplayName,
+                        user.Mail,
+                        user.Cn,
+                        user.AccountLocked,
+                        user.Domain);
+                }
+                dataGridViewReport.AllowUserToAddRows = wasAllowAdd;
+                var countUsers = selectedRecords.Count;
+                for (var i = 0; i < countUsers && i < dataGridViewReport.Rows.Count; i++)
+                {
+                    if (!dataGridViewReport.Rows[i].IsNewRow)
+                        dataGridViewReport.Rows[i].Selected = true;
+                }
+                _protectedSelectionIndices = new HashSet<int>(Enumerable.Range(0, countUsers));
+                _isUpdatingSelection = false;
+                UpdateRecordCountLabel();
             }
-            dataGridViewReport.AllowUserToAddRows = wasAllowAdd;
-            var count = selectedRecords.Count;
-            for (var i = 0; i < count && i < dataGridViewReport.Rows.Count; i++)
+            else if (IsGroupSearchReport && _allGroups != null)
             {
-                if (!dataGridViewReport.Rows[i].IsNewRow)
-                    dataGridViewReport.Rows[i].Selected = true;
+                var selectedRecords = new List<GroupRecord>();
+                var unselectedRecords = new List<GroupRecord>();
+                for (var i = 0; i < _allGroups.Count; i++)
+                {
+                    if (selectedIndices.Contains(i))
+                        selectedRecords.Add(_allGroups[i]);
+                    else
+                        unselectedRecords.Add(_allGroups[i]);
+                }
+
+                var newOrder = new List<GroupRecord>(selectedRecords);
+                newOrder.AddRange(unselectedRecords);
+                _allGroups = newOrder;
+
+                _isUpdatingSelection = true;
+                var wasAllowAdd = dataGridViewReport.AllowUserToAddRows;
+                dataGridViewReport.AllowUserToAddRows = false;
+                while (dataGridViewReport.Rows.Count > 0)
+                    dataGridViewReport.Rows.RemoveAt(dataGridViewReport.Rows.Count - 1);
+                foreach (var group in _allGroups)
+                {
+                    dataGridViewReport.Rows.Add(group.GroupId, group.GroupName, group.DateCreated);
+                }
+                dataGridViewReport.AllowUserToAddRows = wasAllowAdd;
+                var countGroups = selectedRecords.Count;
+                for (var i = 0; i < countGroups && i < dataGridViewReport.Rows.Count; i++)
+                {
+                    if (!dataGridViewReport.Rows[i].IsNewRow)
+                        dataGridViewReport.Rows[i].Selected = true;
+                }
+                _protectedSelectionIndices = new HashSet<int>(Enumerable.Range(0, countGroups));
+                _isUpdatingSelection = false;
+                UpdateRecordCountLabel();
             }
-            _protectedSelectionIndices = new HashSet<int>(Enumerable.Range(0, count));
-            _isUpdatingSelection = false;
-            UpdateRecordCountLabel();
         }
 
         /// <summary>
@@ -358,6 +417,51 @@ namespace Search_for_Users
 
                 MessageBox.Show(
                     $"Delete Users input file saved to:\n{dialog.FileName}",
+                    "File Generated",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error generating file: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Generates a CSV file for the "Delete Group" action.
+        /// Contains only header "Group_id" and one column with group IDs from selected rows.
+        /// </summary>
+        private void GenerateDeleteGroupsCsv()
+        {
+            using var dialog = new SaveFileDialog
+            {
+                Title = "Generate Delete Groups Input File",
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                DefaultExt = "csv",
+                FileName = $"delete_groups_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+            };
+
+            if (dialog.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                var rows = GetRowsForExport();
+                using var writer = new StreamWriter(dialog.FileName, false, Encoding.UTF8);
+
+                writer.WriteLine("Group_id");
+
+                foreach (var row in rows)
+                {
+                    var groupId = EscapeCsvField(row.Cells[0].Value?.ToString() ?? string.Empty);
+                    writer.WriteLine(groupId);
+                }
+
+                MessageBox.Show(
+                    $"Delete Groups input file saved to:\n{dialog.FileName}",
                     "File Generated",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
@@ -580,7 +684,7 @@ namespace Search_for_Users
         }
 
         /// <summary>
-        /// Adds filter controls above the DataGridView for Search for Users action.
+        /// Adds filter controls above the DataGridView for Search for Users-style user reports.
         /// </summary>
         private void AddFilterControls()
         {
@@ -686,12 +790,132 @@ namespace Search_for_Users
         }
 
         /// <summary>
+        /// Adds filter controls above the DataGridView for Search Groups action.
+        /// </summary>
+        private void AddGroupFilterControls()
+        {
+            _filterPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 70,
+                Padding = new Padding(10, 5, 10, 5)
+            };
+
+            var filterLabel = new Label
+            {
+                Text = "Filters:",
+                Location = new Point(10, 8),
+                AutoSize = true,
+                Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold)
+            };
+            _filterPanel.Controls.Add(filterLabel);
+
+            var startX = 60;
+            var spacing = 130;
+
+            _filterGroupId = CreateFilterTextBox("Group ID", startX, spacing * 0);
+            _filterGroupName = CreateFilterTextBox("Group Name", startX, spacing * 1);
+            _filterGroupDateCreated = CreateFilterTextBox("Date Created", startX, spacing * 2);
+
+            _filterPanel.Controls.Add(_filterGroupId);
+            _filterPanel.Controls.Add(_filterGroupName);
+            _filterPanel.Controls.Add(_filterGroupDateCreated);
+
+            // Place buttons next to the fields initially so they are visible; move to far right when panel has real width
+            const int gap = 10;
+            var btnY = 25;
+            var filterW = 70;
+            var clearFilterW = 80;
+            var clearScreenW = 90;
+            var sortDataW = 80;
+
+            // Filter button
+            _btnFilter = new Button
+            {
+                Text = "Filter",
+                Location = new Point(startX + spacing * 3, btnY),
+                Size = new Size(filterW, 25),
+                BackColor = Color.Green,
+                ForeColor = Color.White,
+                UseVisualStyleBackColor = false
+            };
+            _btnFilter.Click += BtnFilterGroups_Click;
+            _filterPanel.Controls.Add(_btnFilter);
+
+            // Clear Filter button
+            _btnClearFilter = new Button
+            {
+                Text = "Clear Filter",
+                Location = new Point(startX + spacing * 3 + filterW + gap, btnY),
+                Size = new Size(clearFilterW, 25),
+                BackColor = Color.Yellow,
+                ForeColor = Color.Black,
+                UseVisualStyleBackColor = false
+            };
+            _btnClearFilter.Click += BtnClearFilterGroups_Click;
+            _filterPanel.Controls.Add(_btnClearFilter);
+
+            // Clear Screen button
+            var btnClearScreen = new Button
+            {
+                Text = "Clear Screen",
+                Location = new Point(startX + spacing * 3 + filterW + gap + clearFilterW + gap, btnY),
+                Size = new Size(clearScreenW, 25),
+                BackColor = Color.BlueViolet,
+                ForeColor = Color.White,
+                UseVisualStyleBackColor = false
+            };
+            btnClearScreen.Click += btnClearScreen_Click;
+            _filterPanel.Controls.Add(btnClearScreen);
+
+            // Sort Data button
+            var btnSortData = new Button
+            {
+                Text = "Sort Data",
+                Location = new Point(startX + spacing * 3 + filterW + gap + clearFilterW + gap + clearScreenW + gap, btnY),
+                Size = new Size(sortDataW, 25),
+                BackColor = Color.Purple,
+                ForeColor = Color.White,
+                UseVisualStyleBackColor = false
+            };
+            btnSortData.Click += BtnSortData_Click;
+            _filterPanel.Controls.Add(btnSortData);
+
+            // When panel is resized (e.g. after dock), position buttons at the far right
+            void PositionGroupButtonsAtRight()
+            {
+                if (_filterPanel == null) return;
+                var w = _filterPanel.ClientSize.Width;
+                if (w < 400) return;
+                var right = w - 10;
+                btnSortData.Location = new Point(right - sortDataW, btnY);
+                btnClearScreen.Location = new Point(right - sortDataW - gap - clearScreenW, btnY);
+                _btnClearFilter!.Location = new Point(right - sortDataW - gap - clearScreenW - gap - clearFilterW, btnY);
+                _btnFilter!.Location = new Point(right - sortDataW - gap - clearScreenW - gap - clearFilterW - gap - filterW, btnY);
+            }
+
+            _filterPanel.Resize += (_, _) => PositionGroupButtonsAtRight();
+            _filterPanel.Layout += (_, _) => PositionGroupButtonsAtRight();
+
+            this.Controls.Add(_filterPanel);
+            _filterPanel.BringToFront();
+
+            // Position buttons at far right once the form is shown (handle exists)
+            Shown += (_, _) => PositionGroupButtonsAtRight();
+
+            dataGridViewReport.Top += 70;
+            dataGridViewReport.Height -= 70;
+
+            dataGridViewReport.SelectionChanged += DataGridViewReport_SelectionChangedProtected;
+        }
+
+        /// <summary>
         /// Keeps the "held" selection when user clicks a cell to edit; only Clear Screen clears all.
         /// Ctrl+click on a selected row unselects it; Ctrl+click on an unselected row selects it.
         /// </summary>
         private void DataGridViewReport_SelectionChangedProtected(object? sender, EventArgs e)
         {
-            if (!_enableFiltering || _allUsers == null) return;
+            if (!_enableFiltering) return;
 
             // Re-entrant call while we're programmatically restoring selection; don't clear the flag here
             if (_isUpdatingSelection)
@@ -923,13 +1147,81 @@ namespace Search_for_Users
         }
 
         /// <summary>
+        /// Applies filters for the Search Groups grid, adding matching rows to the current selection.
+        /// </summary>
+        private void BtnFilterGroups_Click(object? sender, EventArgs e)
+        {
+            if (_allGroups == null) return;
+
+            var filterGroupId = _filterGroupId?.Text?.Trim() ?? string.Empty;
+            var filterGroupName = _filterGroupName?.Text?.Trim() ?? string.Empty;
+            var filterDate = _filterGroupDateCreated?.Text?.Trim() ?? string.Empty;
+
+            var anyFilter = !string.IsNullOrEmpty(filterGroupId) ||
+                            !string.IsNullOrEmpty(filterGroupName) ||
+                            !string.IsNullOrEmpty(filterDate);
+
+            if (!anyFilter)
+            {
+                UpdateRecordCountLabel();
+                return;
+            }
+
+            _isUpdatingSelection = true;
+            for (var i = 0; i < _allGroups.Count && i < dataGridViewReport.Rows.Count; i++)
+            {
+                var g = _allGroups[i];
+                var matches =
+                    (!string.IsNullOrEmpty(filterGroupId) && MatchesFilter(g.GroupId, filterGroupId)) ||
+                    (!string.IsNullOrEmpty(filterGroupName) && MatchesFilter(g.GroupName, filterGroupName)) ||
+                    (!string.IsNullOrEmpty(filterDate) && MatchesFilter(g.DateCreated, filterDate));
+
+                if (matches && !dataGridViewReport.Rows[i].IsNewRow)
+                {
+                    dataGridViewReport.Rows[i].Selected = true;
+                }
+            }
+
+            _protectedSelectionIndices = new HashSet<int>(
+                dataGridViewReport.SelectedRows.Cast<DataGridViewRow>()
+                    .Where(r => !r.IsNewRow && r.Index >= 0)
+                    .Select(r => r.Index));
+
+            _isUpdatingSelection = false;
+            UpdateRecordCountLabel();
+        }
+
+        /// <summary>
+        /// Clears only the group filter text boxes for Search Groups.
+        /// </summary>
+        private void BtnClearFilterGroups_Click(object? sender, EventArgs e)
+        {
+            if (_filterGroupId != null) _filterGroupId.Text = string.Empty;
+            if (_filterGroupName != null) _filterGroupName.Text = string.Empty;
+            if (_filterGroupDateCreated != null) _filterGroupDateCreated.Text = string.Empty;
+        }
+
+        /// <summary>
         /// Updates the record count label to show total rows and selected count when filtering is enabled.
         /// </summary>
         private void UpdateRecordCountLabel()
         {
-            if (!_enableFiltering || _allUsers == null) return;
+            if (!_enableFiltering) return;
 
-            var total = _allUsers.Count;
+            int total;
+            if (IsUserSearchReport && _allUsers != null)
+            {
+                total = _allUsers.Count;
+            }
+            else if (IsGroupSearchReport && _allGroups != null)
+            {
+                total = _allGroups.Count;
+            }
+            else
+            {
+                return;
+            }
+
             var selected = dataGridViewReport.SelectedRows
                 .Cast<DataGridViewRow>()
                 .Count(r => !r.IsNewRow);
@@ -1018,7 +1310,16 @@ namespace Search_for_Users
                 dataGridViewReport.Rows.Add(group.GroupId, group.GroupName, group.DateCreated);
             }
 
-            lblRecordCount.Text = $"Groups: {groups.Count}";
+            if (_enableFiltering && IsGroupSearchReport)
+            {
+                _allGroups = groups;
+                dataGridViewReport.ClearSelection();
+                UpdateRecordCountLabel();
+            }
+            else
+            {
+                lblRecordCount.Text = $"Groups: {groups.Count}";
+            }
         }
 
         /// <summary>
